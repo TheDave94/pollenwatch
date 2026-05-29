@@ -56,6 +56,30 @@ def collapse_index(index: int) -> int:
     return _INDEX_TO_LEVEL[max(0, min(4, int(index)))]
 
 
+# DWD 7-point string scale -> 3-level (operational alignment, by meaning; see
+# ANALYTICS.md). "high"(3)/"moderate-high"(2-3) -> 2; "moderate"(2) is mid -> 1.
+_DWD_TO_LEVEL: dict[str, int] = {
+    "0": 0,
+    "0-1": 0,
+    "1": 1,
+    "1-2": 1,
+    "2": 1,
+    "2-3": 2,
+    "3": 2,
+}
+
+
+def dwd_collapse(value: str | None) -> int | None:
+    """Collapse a DWD value ('0'..'3' with half-steps) to the 0/1/2 level.
+
+    Returns ``None`` (omit the source for this species) for no-data ('-1'),
+    missing, or any unexpected value — never crash, never silently treat as 0.
+    """
+    if value is None:
+        return None
+    return _DWD_TO_LEVEL.get(str(value).strip())
+
+
 def daily_peaks(
     times: list[str], values: list[float | None]
 ) -> list[tuple[str, float]]:

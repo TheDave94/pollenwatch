@@ -10,6 +10,7 @@ from custom_components.pollenwatch.analytics import (
     compute_recent_percentile,
     consensus,
     daily_peaks,
+    dwd_collapse,
     percentile_rank,
     recent_percentile_from_series,
 )
@@ -191,3 +192,68 @@ def test_consensus_reports_source_levels():
     res = consensus({"open_meteo": 2, "polleninformation": 1})
     assert res.source_levels == {"open_meteo": 2, "polleninformation": 1}
     assert res.state == "high"  # adjacent -> higher
+
+
+# --- DWD collapse ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "level"),
+    [
+        ("0", 0), ("0-1", 0),
+        ("1", 1), ("1-2", 1), ("2", 1),
+        ("2-3", 2), ("3", 2),
+    ],
+)
+def test_dwd_collapse_scale(value, level):
+    assert dwd_collapse(value) == level
+
+
+@pytest.mark.parametrize("value", ["-1", "", "5", "x", None, "0 - 1"])
+def test_dwd_collapse_unexpected_omits(value):
+    # no-data / missing / unexpected -> None (omit), never crash, never ->0
+    assert dwd_collapse(value) is None
+
+
+# --- 3-source consensus (new: never exercised before DWD) ------------------
+
+
+def test_consensus_three_sources_all_agree():
+    res = consensus({"open_meteo": 1, "polleninformation": 1, "dwd": 1})
+    assert res.state == "low"
+    assert res.level == 1
+    assert res.diverged is False
+
+
+def test_consensus_three_sources_lone_high_outlier_takes_higher():
+    # {1,1,2}: two sources agree "low", one says "high". DOCUMENTED WART:
+    # take-the-higher makes the lone outlier win (-> high) AND divergence stays
+    # OFF (spread is only 1), so a minority high reading presents as confident
+    # consensus. Interim behavior; see REVIEW_QUEUE (revisit divergence semantics).
+    res = consensus({"open_meteo": 1, "polleninformation": 1, "dwd": 2})
+    assert res.state == "high"
+    assert res.level == 2
+    assert res.diverged is False  # <- the wart
+
+
+def test_consensus_three_sources_spanning_two_levels_is_mixed():
+    res = consensus({"open_meteo": 0, "polleninformation": 0, "dwd": 2})
+    assert res.state == "mixed"
+    assert res.diverged is True
+
+
+def test_consensus_three_sources_low_outlier_takes_higher():
+    # {0,0,1}: take-higher -> low (level 1), not diverged (spread 1).
+    res = consensus({"open_meteo": 0, "polleninformation": 0, "dwd": 1})
+    assert res.state == "low"
+    assert res.level == 1
+    assert res.diverged is False
+
+
+def test_consensus_two_sources_unchanged_when_third_omitted():
+    # A species only 2 sources cover (DWD omitted, e.g. out-of-coverage or -1)
+    # yields the exact same result as the 2-source case — the "third source
+    # disturbs nothing" guarantee at the pure-logic level.
+    two = consensus({"open_meteo": 1, "polleninformation": 2})
+    assert two.state == "high" and two.level == 2 and two.diverged is False
+    assert two.source_levels == {"open_meteo": 1, "polleninformation": 2}
