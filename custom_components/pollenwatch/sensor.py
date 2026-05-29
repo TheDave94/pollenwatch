@@ -17,6 +17,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .analytics import daily_peaks
 from .const import (
     ATTR_FORECAST,
     ATTR_GRID_SHIFT_KM,
@@ -85,24 +86,20 @@ def _async_remove_deconfigured_entities(
                 registry.async_remove(reg_entry.entity_id)
 
 
-def _daily_peak_forecast(
-    times: list[str], values: list[float | None], max_days: int
+def _forecast_attr(
+    times: list[str], values: list[float | None], today: str, max_days: int
 ) -> list[dict[str, Any]]:
-    """Collapse the hourly series into per-day peak values.
+    """The upcoming daily-peak forecast: per-day max for dates >= today.
 
-    Peaks (not means) drive allergic reactions; the partially-null 5th forecast
-    day is dropped by capping at ``max_days``.
+    The series now spans ~92 past days (for recent_percentile), so the forecast
+    must be the today-onward slice — not the earliest days. Peaks (not means)
+    drive allergic reactions; the partially-null 5th day is dropped via max_days.
     """
-    peaks: dict[str, float] = {}
-    for time, value in zip(times, values, strict=False):
-        if value is None:
-            continue
-        date = time[:10]  # 'YYYY-MM-DD'
-        peaks[date] = max(peaks.get(date, value), value)
     return [
         {"date": date, "value": peak}
-        for date, peak in sorted(peaks.items())[:max_days]
-    ]
+        for date, peak in daily_peaks(times, values)
+        if date >= today
+    ][:max_days]
 
 
 class PollenWatchSensor(
@@ -158,9 +155,10 @@ class PollenWatchSensor(
         if series is None:
             return None
         shift = result.coordinate_shift_km
+        today = (result.current_time or "")[:10]
         return {
-            ATTR_FORECAST: _daily_peak_forecast(
-                result.times, series.values, FORECAST_DAYS
+            ATTR_FORECAST: _forecast_attr(
+                result.times, series.values, today, FORECAST_DAYS
             ),
             ATTR_REQUESTED_LAT: result.requested_lat,
             ATTR_REQUESTED_LON: result.requested_lon,

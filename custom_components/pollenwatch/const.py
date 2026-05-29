@@ -90,10 +90,11 @@ DEFAULT_UPDATE_INTERVAL_MIN: Final = 60
 MIN_UPDATE_INTERVAL_MIN: Final = 60
 MAX_UPDATE_INTERVAL_MIN: Final = 24 * 60
 
-# Open-Meteo fetch window. Milestone 2 needs no history (the recent-percentile
-# feature lands in milestone 3), so we request no past days and keep payloads
-# small. forecast_days=5 gives a best-effort 5th day; we expose 4 daily peaks.
-OPEN_METEO_PAST_DAYS: Final = 0
+# Open-Meteo fetch window. Milestone 3b's recent_percentile baselines today
+# against the trailing ~92 days, so we request the full backfill (probe-confirmed
+# available). forecast_days=5 gives a best-effort 5th day; we expose 4 daily peaks.
+# (Re-fetching 92 past days hourly is wasteful — see REVIEW_QUEUE.)
+OPEN_METEO_PAST_DAYS: Final = 92
 OPEN_METEO_FORECAST_DAYS: Final = 5
 FORECAST_DAYS: Final = 4
 

@@ -7,3 +7,5 @@ things that need real-world data or elapsed time before they can be decided.
 | --- | --- | --- |
 | 2026-05-29 | ~4 weeks of live data (≈ 2026-06-26) | Evaluate whether the **60 min default update interval** is right. Lower risks stale data relative to how often the hourly CAMS data actually moves; higher wastes the freshness Open-Meteo provides. Decide from the live Graz instance's recorder history (how much do values change hour-to-hour vs. the polling cost). |
 | 2026-05-29 | At convenience (non-urgent) | **Rotate the polleninformation.at API key.** It appeared in a browser-chat transcript (a leak surface), so request a fresh key and swap it via the integration's options flow. Low-stakes key; not urgent. |
+| 2026-05-29 | After 3b ships | **Open-Meteo 92-day backfill is re-fetched hourly** (for recent_percentile). Past data doesn't change, so this is wasteful payload. Consider fetching the backfill once/day and only the forecast hourly, or caching the historical daily peaks. |
+| 2026-05-29 | After real dual-source data | **Divergence ">1 level apart" threshold** — confirm how often it fires once consensus/divergence ship; tune if too noisy/quiet. |
