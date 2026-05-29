@@ -277,7 +277,11 @@ class ConsensusSensor(
     Unavailable when fewer than two sources currently cover the species.
     """
 
-    _attr_has_entity_name = True
+    # has_entity_name MUST be set False explicitly: its default flipped to True
+    # in HA 2026.5, which device-prefixes the entity ID. False keeps the entity
+    # ID = slug(name) = sensor.pollenwatch_consensus_<species> (the documented
+    # cross-source contract), independent of the "PollenWatch Analytics" device.
+    _attr_has_entity_name = False
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = CONSENSUS_OPTIONS
     _attr_icon = "mdi:scale-balance"
@@ -291,11 +295,9 @@ class ConsensusSensor(
         super().__init__(coordinator)
         self._species = species
         self._attr_unique_id = f"{entry.entry_id}_consensus_{species}"
-        self._attr_name = f"{ALLERGEN_NAMES.get(species, species)} consensus"
+        # slug -> sensor.pollenwatch_consensus_<species>
+        self._attr_name = f"PollenWatch Consensus {ALLERGEN_NAMES.get(species, species)}"
         self._attr_device_info = analytics_device_info(entry)
-        # Force the documented cross-source entity ID rather than letting it be
-        # derived from the device slug (which differs across HA versions).
-        self.entity_id = f"sensor.{DOMAIN}_consensus_{species}"
 
     def _result(self):
         return self.coordinator.data.consensus.get(self._species)

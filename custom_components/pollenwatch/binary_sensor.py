@@ -18,7 +18,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ALLERGEN_NAMES, DOMAIN
+from .const import ALLERGEN_NAMES
 from .coordinator import (
     PollenWatchAnalyticsCoordinator,
     PollenWatchConfigEntry,
@@ -50,7 +50,10 @@ class DivergenceSensor(
 ):
     """True when sources disagree by more than one level for a species."""
 
-    _attr_has_entity_name = True
+    # has_entity_name False explicitly (its default flipped to True in HA 2026.5,
+    # which device-prefixes the ID). Keeps the entity ID = slug(name) =
+    # binary_sensor.pollenwatch_divergence_<species> (the documented contract).
+    _attr_has_entity_name = False
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_icon = "mdi:call-split"
 
@@ -63,10 +66,9 @@ class DivergenceSensor(
         super().__init__(coordinator)
         self._species = species
         self._attr_unique_id = f"{entry.entry_id}_divergence_{species}"
-        self._attr_name = f"{ALLERGEN_NAMES.get(species, species)} divergence"
+        # slug -> binary_sensor.pollenwatch_divergence_<species>
+        self._attr_name = f"PollenWatch Divergence {ALLERGEN_NAMES.get(species, species)}"
         self._attr_device_info = analytics_device_info(entry)
-        # Force the documented entity ID (HA-version-independent).
-        self.entity_id = f"binary_sensor.{DOMAIN}_divergence_{species}"
 
     def _result(self):
         return self.coordinator.data.consensus.get(self._species)
