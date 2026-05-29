@@ -28,12 +28,31 @@ These tell one coherent story (each ≥ the declared floor):
 
 - **Declared floor:** 2024.11.0 (by the audit above).
 - **Automated tests:** Home Assistant **2025.1.4**, via the pinned
-  `pytest-homeassistant-custom-component==0.13.205` (the newest the dev/CI
-  package index offers here). 2025.1.4 ≥ the floor.
+  `pytest-homeassistant-custom-component==0.13.205`. 2025.1.4 ≥ the floor.
 - **Production / live verification:** Home Assistant **2026.5.4** — the
   maintainer's instance, exercised end-to-end (config flow, sensors, options
   flow, coverage rejection) during the v0.1 deployment pass. This closes the gap
   between the test harness and the latest HA.
+
+### Why the harness sits above the floor (deliberate)
+
+The harness pins to 2025.1.4 rather than to the 2024.11.0 floor **on purpose**,
+not by accident:
+
+- The dev/CI package index available here only offers
+  `pytest-homeassistant-custom-component` builds that install **HA 2025.1.x** —
+  there is no harness build that installs 2024.11.x, so testing exactly at the
+  floor is not possible in this environment.
+- We therefore pin to the **newest HA the index offers** (2025.1.4): a single,
+  reproducible version that is ≥ the floor and closest to production.
+- The floor itself is established **by audit** (the table above — introduction
+  versions read from the HA source), not by what the harness happens to install.
+- Production (**2026.5.4**) brackets the tested version from above via the live
+  deployment pass. So the floor is justified by audit and the *range we actually
+  run on* (2025.1.4 → 2026.5.4) sits comfortably above it.
+
+If a harness build that installs ~2024.11.x becomes available, add a CI matrix
+entry pinned there to catch floor regressions directly.
 
 ## Future
 
