@@ -1,7 +1,7 @@
 {
   "domain": "pollenwatch",
   "name": "PollenWatch",
-  "codeowners": [],
+  "codeowners": ["@TheDave94"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/TheDave94/pollenwatch",
@@ -10,5 +10,5 @@
   "issue_tracker": "https://github.com/TheDave94/pollenwatch/issues",
   "quality_scale": "silver",
   "requirements": [],
-  "version": "0.0.1"
+  "version": "0.1.0"
 }
