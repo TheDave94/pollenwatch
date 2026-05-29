@@ -19,6 +19,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .analytics import daily_peaks
 from .const import (
+    ALLERGEN_NAMES,
     ATTR_FORECAST,
     ATTR_GRID_SHIFT_KM,
     ATTR_LAST_UPDATED,
@@ -34,7 +35,26 @@ from .const import (
     SOURCE_DEVICE_MODELS,
     SOURCE_DEVICE_NAMES,
 )
-from .coordinator import PollenWatchConfigEntry, PollenWatchSourceCoordinator
+from .coordinator import (
+    PollenWatchAnalyticsCoordinator,
+    PollenWatchConfigEntry,
+    PollenWatchSourceCoordinator,
+)
+
+# Extra-state-attribute keys for the recent_percentile sensor.
+ATTR_HISTORY_STATUS = "history_status"
+ATTR_DAYS_OF_HISTORY = "days_of_history"
+
+
+def _source_device_info(entry: PollenWatchConfigEntry, source_key: str) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_{source_key}")},
+        name=SOURCE_DEVICE_NAMES[source_key],
+        manufacturer="PollenWatch",
+        model=SOURCE_DEVICE_MODELS.get(source_key),
+        entry_type=DeviceEntryType.SERVICE,
+        configuration_url=SOURCE_CONFIG_URLS.get(source_key),
+    )
 
 
 async def async_setup_entry(
@@ -47,9 +67,10 @@ async def async_setup_entry(
     Runs on every reload (including after an options change), so it also prunes
     registry entries for allergens no longer configured for each source.
     """
-    coordinators = entry.runtime_data.coordinators
-    entities: list[PollenWatchSensor] = []
-    for source_key, coordinator in coordinators.items():
+    runtime = entry.runtime_data
+    analytics = runtime.analytics
+    entities: list[SensorEntity] = []
+    for source_key, coordinator in runtime.coordinators.items():
         # Keep registry entries for every configured allergen (so a transient
         # absence doesn't delete a sensor); only create sensors for allergens the
         # source actually returned (a source's set is location/country-dependent).
@@ -58,10 +79,12 @@ async def async_setup_entry(
         if coordinator.data is None:
             continue
         present = [a for a in coordinator.source.allergens if a in coordinator.data.allergens]
-        entities.extend(
-            PollenWatchSensor(coordinator, source_key, allergen)
-            for allergen in present
-        )
+        for allergen in present:
+            entities.append(PollenWatchSensor(coordinator, source_key, allergen))
+            if analytics is not None:
+                entities.append(
+                    RecentPercentileSensor(analytics, entry, source_key, allergen)
+                )
     async_add_entities(entities)
 
 
@@ -81,7 +104,10 @@ def _async_remove_deconfigured_entities(
     prefix = f"{entry.entry_id}_{source_key}_"
     for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
         if reg_entry.unique_id.startswith(prefix):
-            allergen = reg_entry.unique_id[len(prefix):]
+            # Suffix is "<allergen>" or "<allergen>_<metric>" (e.g.
+            # grass_recent_percentile); the allergen is the first token. Removing
+            # a deconfigured allergen drops all its entities (raw + derived).
+            allergen = reg_entry.unique_id[len(prefix):].split("_", 1)[0]
             if allergen not in configured:
                 registry.async_remove(reg_entry.entity_id)
 
@@ -127,14 +153,7 @@ class PollenWatchSensor(
         # 0–4 index) for polleninformation — never fake a concentration unit.
         series = coordinator.data.allergens.get(allergen)
         self._attr_native_unit_of_measurement = series.unit if series else None
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{entry.entry_id}_{source_key}")},
-            name=SOURCE_DEVICE_NAMES[source_key],
-            manufacturer="PollenWatch",
-            model=SOURCE_DEVICE_MODELS.get(source_key),
-            entry_type=DeviceEntryType.SERVICE,
-            configuration_url=SOURCE_CONFIG_URLS.get(source_key),
-        )
+        self._attr_device_info = _source_device_info(entry, source_key)
 
     @property
     def available(self) -> bool:
@@ -166,4 +185,56 @@ class PollenWatchSensor(
             ATTR_SNAPPED_LON: result.snapped_lon,
             ATTR_GRID_SHIFT_KM: round(shift, 2) if shift is not None else None,
             ATTR_LAST_UPDATED: result.generated_at,
+        }
+
+
+class RecentPercentileSensor(
+    CoordinatorEntity[PollenWatchAnalyticsCoordinator], SensorEntity
+):
+    """Today's daily peak as a percentile of the recent window (per source).
+
+    Single-source (each source gets its own). Open-Meteo computes from its
+    92-day backfill (day one); polleninformation baselines on recorder history
+    and reports an honest "insufficient_history" state (no number) until enough
+    days accrue. State is unitless 0–100; the history status is in attributes.
+    """
+
+    _attr_has_entity_name = True
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:chart-bell-curve-cumulative"
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self,
+        coordinator: PollenWatchAnalyticsCoordinator,
+        entry: PollenWatchConfigEntry,
+        source_key: str,
+        allergen: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._key = (source_key, allergen)
+        self._attr_unique_id = (
+            f"{entry.entry_id}_{source_key}_{allergen}_recent_percentile"
+        )
+        # English name (derived metrics aren't localised yet); the device-name
+        # slug keeps the entity ID as pollenwatch_<source>_<allergen>_recent_percentile.
+        self._attr_name = f"{ALLERGEN_NAMES.get(allergen, allergen)} recent percentile"
+        self._attr_device_info = _source_device_info(entry, source_key)
+
+    @property
+    def native_value(self) -> float | None:
+        result = self.coordinator.data.get(self._key)
+        if result is None or result.status != "ok":
+            return None
+        return result.percentile
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        result = self.coordinator.data.get(self._key)
+        if result is None:
+            return None
+        return {
+            ATTR_HISTORY_STATUS: result.status,
+            ATTR_DAYS_OF_HISTORY: result.days,
         }

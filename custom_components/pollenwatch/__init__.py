@@ -56,7 +56,11 @@ async def async_setup_entry(
     from homeassistant.const import Platform
 
     from .const import SOURCE_OPEN_METEO
-    from .coordinator import PollenWatchData, build_coordinators
+    from .coordinator import (
+        PollenWatchAnalyticsCoordinator,
+        PollenWatchData,
+        build_coordinators,
+    )
 
     coordinators = build_coordinators(hass, entry)
     # Open-Meteo is the primary, keyless source: it must be ready or the entry
@@ -66,7 +70,14 @@ async def async_setup_entry(
     for source_key, coordinator in coordinators.items():
         if source_key != SOURCE_OPEN_METEO:
             await coordinator.async_refresh()
-    entry.runtime_data = PollenWatchData(coordinators=coordinators)
+
+    # Analytics (derived) coordinator reads the source coordinators above.
+    analytics = PollenWatchAnalyticsCoordinator(hass, entry, coordinators)
+    await analytics.async_refresh()
+
+    entry.runtime_data = PollenWatchData(
+        coordinators=coordinators, analytics=analytics
+    )
 
     await hass.config_entries.async_forward_entry_setups(
         entry, [Platform(p) for p in PLATFORMS]

@@ -10,6 +10,7 @@ from custom_components.pollenwatch.analytics import (
     compute_recent_percentile,
     daily_peaks,
     percentile_rank,
+    recent_percentile_from_series,
 )
 
 
@@ -100,3 +101,26 @@ def test_recent_percentile_no_today_data():
     res = compute_recent_percentile(peaks, "2026-04-01", min_days=1)
     assert res.status == "no_data"
     assert res.percentile is None
+
+
+def test_recent_percentile_from_series_hourly_to_daily():
+    # 16 days of hourly-ish data (two readings/day); today's peak is the max.
+    times, values = [], []
+    for d in range(1, 17):
+        date = f"2026-03-{d:02d}"
+        times += [f"{date}T03:00", f"{date}T15:00"]
+        peak = 9.0 if d == 16 else 1.0
+        values += [0.0, peak]  # overnight zero + daytime peak
+    res = recent_percentile_from_series(times, values, "2026-03-16", min_days=14)
+    assert res.status == "ok"
+    assert res.days == 16  # one per day, not per hour
+    assert res.percentile == pytest.approx(100.0 * (15 + 0.5) / 16)
+
+
+def test_recent_percentile_from_series_trims_window():
+    times = [f"2026-01-{d:02d}T12:00" for d in range(1, 11)]
+    values = [1.0] * 10
+    res = recent_percentile_from_series(
+        times, values, "2026-01-10", window_days=5, min_days=3
+    )
+    assert res.days == 5  # only the trailing 5 days kept

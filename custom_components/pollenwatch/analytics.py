@@ -119,3 +119,24 @@ def compute_recent_percentile(
     return PercentileResult(
         percentile_rank(today_peak, distribution), len(by_date), "ok"
     )
+
+
+def recent_percentile_from_series(
+    times: list[str],
+    values: list[float | None],
+    today: str,
+    *,
+    window_days: int = PERCENTILE_WINDOW_DAYS,
+    min_days: int = MIN_PERCENTILE_DAYS,
+) -> PercentileResult:
+    """recent_percentile for a source that carries its own history series.
+
+    Daily-peaks the aligned (times, values), keeps the trailing ``window_days``
+    up to and including ``today``, and ranks today within it. (Open-Meteo's
+    92-day backfill path.)
+    """
+    peaks = [(d, p) for d, p in daily_peaks(times, values) if d <= today]
+    return compute_recent_percentile(
+        peaks[-window_days:], today, min_days=min_days
+    )
+
