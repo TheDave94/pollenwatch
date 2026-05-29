@@ -177,10 +177,44 @@ disabled until the key arrives.
 
 ---
 
-## 5. polleninformation API — findings (TBD before the client)
+## 5. polleninformation API — probe findings (2026-05-29)
 
-_To be filled in from the API research task (3a step 3), before
-`sources/polleninformation.py` is written._
+Endpoint: `GET https://www.polleninformation.at/api/forecast/public`; params
+`country` (ISO-2), `lang`, `latitude`, `longitude`, `apikey` (+ mobile UA,
+Accept JSON). Probed live (Graz AT, Berlin DE, NYC US) with the real key (key
+kept out of git — env var only).
+
+**Response** (HTTP 200), top-level keys `contamination`, `allergyrisk`,
+`allergyrisk_hourly`:
+- `contamination`: list of allergens, each `{poll_id, poll_title,
+  contamination_1..4}`.
+  - `poll_id` = stable int; `poll_title` = English + Latin in parens.
+  - `contamination_N` = **0–4 index** for day N (1 = today … 4 = +3 days).
+    **Daily, not hourly.**
+- `allergyrisk`: overall daily risk `{allergyrisk_1..4}` on a wider scale (saw
+  8/8/8/5) — an aggregate, not per-allergen.
+- `allergyrisk_hourly`: overall, 4 days × 24 hourly.
+
+**Canonical allergen → poll_id** (all six present for AT): alder=1, birch=2,
+grass=5, mugwort=7, olive=18, ragweed=6.
+
+**Coverage / behavior:**
+- Allergen set is **country-dependent** (AT=18, DE=8). Global selection maps
+  onto what's present; absent allergens get no sensor (matches A2).
+- Unsupported location → **HTTP 200 with `{"error": ...}`** (not a 4xx). Detect
+  coverage via the error key — an echo of the Open-Meteo HTTP-400 lesson.
+- Auth failure → 401/403 → repair flow. No rate-limit headers observed.
+- **`country` (ISO-2) is required** — lat/lon alone is not enough.
+
+**Discrepancies vs assumptions:** "0–4 native" confirmed; "14 countries" is
+actually **13** (AT,CH,DE,ES,FR,GB,IT,LV,LT,PL,SE,TR,UA); and the data is a
+**daily 0–4 index**, not hourly grains/m³ like Open-Meteo.
+
+**Leans (pending maintainer decisions on country + index representation):** store
+the 4 daily values in the existing `SourceResult` (times = dates) so the
+sensor's daily-peak forecast works unchanged; `current` = `contamination_1`;
+ignore the overall `allergyrisk` for v1.0; pi sensors expose the native 0–4
+index (3b normalizes across sources).
 
 ## 6. Beyond milestone 3
 DWD Pollenflug (the third v1.0 source) is a later source-addition milestone
