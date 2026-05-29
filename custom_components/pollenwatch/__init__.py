@@ -55,11 +55,17 @@ async def async_setup_entry(
     """Set up PollenWatch from a config entry."""
     from homeassistant.const import Platform
 
+    from .const import SOURCE_OPEN_METEO
     from .coordinator import PollenWatchData, build_coordinators
 
     coordinators = build_coordinators(hass, entry)
-    for coordinator in coordinators.values():
-        await coordinator.async_config_entry_first_refresh()
+    # Open-Meteo is the primary, keyless source: it must be ready or the entry
+    # retries. Optional sources (polleninformation) refresh non-blockingly so a
+    # failure there leaves their sensors unavailable without taking the entry down.
+    await coordinators[SOURCE_OPEN_METEO].async_config_entry_first_refresh()
+    for source_key, coordinator in coordinators.items():
+        if source_key != SOURCE_OPEN_METEO:
+            await coordinator.async_refresh()
     entry.runtime_data = PollenWatchData(coordinators=coordinators)
 
     await hass.config_entries.async_forward_entry_setups(

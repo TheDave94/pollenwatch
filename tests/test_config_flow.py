@@ -10,15 +10,37 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.pollenwatch.config_flow import CONF_ENABLE_PI
 from custom_components.pollenwatch.const import (
     CONF_ALLERGENS,
+    CONF_API_KEY,
+    CONF_COUNTRY,
+    CONF_ENABLED,
+    CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
     DOMAIN,
+    SOURCE_POLLENINFORMATION,
+    new_sources_config,
 )
 
 _LOCATION = {"latitude": 47.07, "longitude": 15.44}
 _PROBE = "custom_components.pollenwatch.config_flow._async_probe_coverage"
+_PROBE_PI = "custom_components.pollenwatch.config_flow._async_probe_polleninformation"
 _SETUP = "custom_components.pollenwatch.async_setup_entry"
+
+
+def _options_entry() -> MockConfigEntry:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="47.0700_15.4400",
+        data={
+            CONF_LATITUDE: 47.07,
+            CONF_LONGITUDE: 15.44,
+            CONF_ALLERGENS: ["grass", "birch"],
+        },
+        options={CONF_ALLERGENS: ["grass", "birch"], CONF_SOURCES: new_sources_config()},
+    )
 
 
 async def _start(hass: HomeAssistant):
@@ -127,3 +149,69 @@ async def test_options_flow_updates_allergens_and_interval(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_ALLERGENS] == ["grass"]
     assert entry.options[CONF_UPDATE_INTERVAL] == 120
+
+
+async def test_options_enable_polleninformation(hass: HomeAssistant) -> None:
+    entry = _options_entry()
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with patch(_PROBE_PI, return_value=None):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_ALLERGENS: ["grass", "birch"],
+                CONF_UPDATE_INTERVAL: 60,
+                CONF_ENABLE_PI: True,
+                CONF_COUNTRY: "AT",
+                CONF_API_KEY: "secret-key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    pi = entry.options[CONF_SOURCES][SOURCE_POLLENINFORMATION]
+    assert pi[CONF_ENABLED] is True
+    assert pi[CONF_COUNTRY] == "AT"
+    assert pi[CONF_API_KEY] == "secret-key"
+
+
+async def test_options_pi_out_of_coverage_errors(hass: HomeAssistant) -> None:
+    entry = _options_entry()
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with patch(_PROBE_PI, return_value="out_of_coverage"):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_ALLERGENS: ["grass", "birch"],
+                CONF_UPDATE_INTERVAL: 60,
+                CONF_ENABLE_PI: True,
+                CONF_COUNTRY: "AT",
+                CONF_API_KEY: "secret-key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "out_of_coverage"}
+
+
+async def test_options_pi_requires_country_and_key(hass: HomeAssistant) -> None:
+    entry = _options_entry()
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_UPDATE_INTERVAL: 60,
+            CONF_ENABLE_PI: True,
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {
+        CONF_COUNTRY: "country_required",
+        CONF_API_KEY: "api_key_required",
+    }

@@ -49,11 +49,17 @@ async def async_setup_entry(
     coordinators = entry.runtime_data.coordinators
     entities: list[PollenWatchSensor] = []
     for source_key, coordinator in coordinators.items():
-        configured = list(coordinator.source.allergens)
-        _async_remove_deconfigured_entities(hass, entry, source_key, set(configured))
+        # Keep registry entries for every configured allergen (so a transient
+        # absence doesn't delete a sensor); only create sensors for allergens the
+        # source actually returned (a source's set is location/country-dependent).
+        configured = set(coordinator.source.allergens)
+        _async_remove_deconfigured_entities(hass, entry, source_key, configured)
+        if coordinator.data is None:
+            continue
+        present = [a for a in coordinator.source.allergens if a in coordinator.data.allergens]
         entities.extend(
             PollenWatchSensor(coordinator, source_key, allergen)
-            for allergen in configured
+            for allergen in present
         )
     async_add_entities(entities)
 
@@ -106,7 +112,6 @@ class PollenWatchSensor(
 
     _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = "grains/m³"
     _attr_icon = "mdi:flower-pollen"
 
     def __init__(
@@ -121,6 +126,10 @@ class PollenWatchSensor(
         self._attr_unique_id = f"{entry.entry_id}_{source_key}_{allergen}"
         self._attr_translation_key = allergen
         self._attr_attribution = SOURCE_ATTRIBUTIONS.get(source_key, ATTRIBUTION_CAMS)
+        # Unit comes from the source: grains/m³ for Open-Meteo, None (an ordinal
+        # 0–4 index) for polleninformation — never fake a concentration unit.
+        series = coordinator.data.allergens.get(allergen)
+        self._attr_native_unit_of_measurement = series.unit if series else None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry.entry_id}_{source_key}")},
             name=SOURCE_DEVICE_NAMES[source_key],

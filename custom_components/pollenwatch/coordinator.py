@@ -21,16 +21,23 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     CONF_ALLERGENS,
+    CONF_API_KEY,
+    CONF_COUNTRY,
+    CONF_ENABLED,
+    CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
     DEFAULT_ALLERGENS,
     DEFAULT_UPDATE_INTERVAL_MIN,
     DOMAIN,
     OPEN_METEO_FORECAST_DAYS,
     OPEN_METEO_PAST_DAYS,
+    PI_UPDATE_INTERVAL_MIN,
     SOURCE_OPEN_METEO,
+    SOURCE_POLLENINFORMATION,
 )
 from .sources.base import PollenSource, SourceError, SourceResult
 from .sources.open_meteo import OpenMeteoSource
+from .sources.polleninformation import PolleninformationSource
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,21 +105,44 @@ def build_coordinators(
 ) -> dict[str, PollenWatchSourceCoordinator]:
     """Construct the per-source coordinators enabled for this entry.
 
-    Milestone 3a step 1 wires only Open-Meteo through the new container;
-    polleninformation is added once its config (enable + API key) lands.
+    Open-Meteo is always built; polleninformation is built only when enabled
+    with an API key + country. The global allergen selection is passed to every
+    source, which maps it onto its own capabilities.
     """
     interval = _entry_option(entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_MIN)
     allergens = _entry_option(entry, CONF_ALLERGENS, DEFAULT_ALLERGENS)
+    latitude = entry.data[CONF_LATITUDE]
+    longitude = entry.data[CONF_LONGITUDE]
+    sources_cfg = _entry_option(entry, CONF_SOURCES, {})
 
     open_meteo = OpenMeteoSource(
-        entry.data[CONF_LATITUDE],
-        entry.data[CONF_LONGITUDE],
+        latitude,
+        longitude,
         allergens,
         past_days=OPEN_METEO_PAST_DAYS,
         forecast_days=OPEN_METEO_FORECAST_DAYS,
     )
-    return {
+    coordinators: dict[str, PollenWatchSourceCoordinator] = {
         SOURCE_OPEN_METEO: PollenWatchSourceCoordinator(
             hass, entry, open_meteo, SOURCE_OPEN_METEO, interval
         )
     }
+
+    pi_cfg = sources_cfg.get(SOURCE_POLLENINFORMATION, {})
+    if pi_cfg.get(CONF_ENABLED) and pi_cfg.get(CONF_API_KEY) and pi_cfg.get(CONF_COUNTRY):
+        polleninformation = PolleninformationSource(
+            latitude,
+            longitude,
+            pi_cfg[CONF_COUNTRY],
+            pi_cfg[CONF_API_KEY],
+            allergens,
+        )
+        coordinators[SOURCE_POLLENINFORMATION] = PollenWatchSourceCoordinator(
+            hass,
+            entry,
+            polleninformation,
+            SOURCE_POLLENINFORMATION,
+            PI_UPDATE_INTERVAL_MIN,
+        )
+
+    return coordinators

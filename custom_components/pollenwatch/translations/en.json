@@ -31,15 +31,26 @@
         "description": "The location is fixed; remove and re-add the integration to change it.",
         "data": {
           "allergens": "Allergens",
-          "update_interval": "Update interval (minutes)"
+          "update_interval": "Update interval (minutes)",
+          "enable_polleninformation": "Enable polleninformation.at (second source)",
+          "country": "Country (polleninformation)",
+          "api_key": "polleninformation API key"
         },
         "data_description": {
-          "update_interval": "How often to poll Open-Meteo. Minimum 60 minutes to be a good citizen on a free public API."
+          "update_interval": "How often to poll Open-Meteo. Minimum 60 minutes to be a good citizen on a free public API.",
+          "enable_polleninformation": "Adds a second source. Requires a free API key from polleninformation.at.",
+          "country": "The country whose pollen network covers your location.",
+          "api_key": "Stored encrypted in Home Assistant; never written to disk in plain text."
         }
       }
     },
     "error": {
-      "no_allergens": "Select at least one allergen."
+      "no_allergens": "Select at least one allergen.",
+      "country_required": "Select a country to enable polleninformation.",
+      "api_key_required": "Enter your polleninformation API key.",
+      "invalid_api_key": "polleninformation rejected the API key. Check it and try again.",
+      "out_of_coverage": "polleninformation has no data for this location in the selected country.",
+      "cannot_connect": "Could not reach polleninformation. Check your connection and try again."
     }
   },
   "selector": {
@@ -51,6 +62,23 @@
         "mugwort": "Mugwort",
         "olive": "Olive",
         "ragweed": "Ragweed"
+      }
+    },
+    "country": {
+      "options": {
+        "AT": "Austria",
+        "CH": "Switzerland",
+        "DE": "Germany",
+        "ES": "Spain",
+        "FR": "France",
+        "GB": "United Kingdom",
+        "IT": "Italy",
+        "LV": "Latvia",
+        "LT": "Lithuania",
+        "PL": "Poland",
+        "SE": "Sweden",
+        "TR": "Türkiye",
+        "UA": "Ukraine"
       }
     }
   },

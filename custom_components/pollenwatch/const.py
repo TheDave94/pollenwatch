@@ -32,15 +32,19 @@ SOURCE_OPEN_METEO_NAME: Final = "Open-Meteo (CAMS)"
 # are load-bearing for existing entities and must stay stable.
 SOURCE_DEVICE_NAMES: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "PollenWatch Open-Meteo",
+    "polleninformation": "PollenWatch Polleninformation",
 }
 SOURCE_DEVICE_MODELS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "CAMS via Open-Meteo",
+    "polleninformation": "polleninformation.at",
 }
 SOURCE_CONFIG_URLS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "https://open-meteo.com/",
+    "polleninformation": "https://www.polleninformation.at/",
 }
 SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: ATTRIBUTION_CAMS,
+    "polleninformation": "© Polleninformation Austria",
 }
 
 # Config-entry / options keys. Location uses homeassistant.const
@@ -53,20 +57,30 @@ CONF_UPDATE_INTERVAL: Final = "update_interval"  # minutes
 CONF_SOURCES: Final = "sources"
 CONF_ENABLED: Final = "enabled"
 CONF_API_KEY: Final = "api_key"  # local copy to keep const free of HA imports
+CONF_COUNTRY: Final = "country"
 
 # Second source (added in milestone 3a; disabled until a key is supplied).
 SOURCE_POLLENINFORMATION: Final = "polleninformation"
+SOURCE_POLLENINFORMATION_NAME: Final = "Polleninformation"
+
+# polleninformation publishes a daily index (cadence ~8–24 h), so polling it
+# hourly would waste a free public API. Use a fixed, slower interval.
+PI_UPDATE_INTERVAL_MIN: Final = 6 * 60
 
 
 def new_sources_config() -> dict[str, dict[str, object]]:
     """Default per-source enablement for a new or migrated entry.
 
     Open-Meteo is always on (keyless, primary); polleninformation is off until
-    the user enables it and supplies an API key.
+    the user enables it and supplies an API key + country.
     """
     return {
         SOURCE_OPEN_METEO: {CONF_ENABLED: True},
-        SOURCE_POLLENINFORMATION: {CONF_ENABLED: False, CONF_API_KEY: ""},
+        SOURCE_POLLENINFORMATION: {
+            CONF_ENABLED: False,
+            CONF_API_KEY: "",
+            CONF_COUNTRY: "",
+        },
     }
 
 # Defaults and guardrails.

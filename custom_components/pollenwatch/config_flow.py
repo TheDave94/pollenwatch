@@ -26,6 +26,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import (
     ALLERGEN_NAMES,
     CONF_ALLERGENS,
+    CONF_API_KEY,
+    CONF_COUNTRY,
+    CONF_ENABLED,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
     DEFAULT_ALLERGENS,
@@ -33,13 +36,17 @@ from .const import (
     DOMAIN,
     MAX_UPDATE_INTERVAL_MIN,
     MIN_UPDATE_INTERVAL_MIN,
+    SOURCE_OPEN_METEO,
+    SOURCE_POLLENINFORMATION,
     new_sources_config,
 )
 from .coordinator import PollenWatchConfigEntry, _entry_option
-from .sources.base import SourceError, SourceStatus
+from .sources.base import SourceAuthError, SourceError, SourceStatus
 from .sources.open_meteo import OpenMeteoSource
+from .sources.polleninformation import SUPPORTED_COUNTRIES, PolleninformationSource
 
 CONF_LOCATION = "location"
+CONF_ENABLE_PI = "enable_polleninformation"
 
 _ALLERGEN_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
@@ -62,6 +69,40 @@ _INTERVAL_SELECTOR = selector.NumberSelector(
         mode=selector.NumberSelectorMode.BOX,
     )
 )
+
+_COUNTRY_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=[
+            selector.SelectOptionDict(value=code, label=code)
+            for code in SUPPORTED_COUNTRIES
+        ],
+        mode=selector.SelectSelectorMode.DROPDOWN,
+        translation_key="country",
+    )
+)
+
+_API_KEY_SELECTOR = selector.TextSelector(
+    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+)
+
+
+async def _async_probe_polleninformation(
+    hass, latitude: float, longitude: float, country: str, api_key: str,
+    allergens: list[str],
+) -> str | None:
+    """Return a config-flow error key if polleninformation can't be used."""
+    source = PolleninformationSource(
+        latitude, longitude, country, api_key, allergens
+    )
+    try:
+        result = await source.async_fetch(session=async_get_clientsession(hass))
+    except SourceAuthError:
+        return "invalid_api_key"
+    except SourceError:
+        return "cannot_connect"
+    if result.status is SourceStatus.OUT_OF_COVERAGE:
+        return "out_of_coverage"
+    return None
 
 
 async def _async_probe_coverage(
@@ -146,25 +187,70 @@ class PollenWatchConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class PollenWatchOptionsFlow(OptionsFlow):
-    """Edit allergens and the update interval after setup (location is fixed)."""
+    """Edit allergens, interval, and the polleninformation source after setup.
+
+    Location is fixed (remove + re-add to change it).
+    """
+
+    def _supported_default_country(self) -> str | None:
+        country = (self.hass.config.country or "").upper()
+        return country if country in SUPPORTED_COUNTRIES else None
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
+        entry = self.config_entry
+        pi_cfg = _entry_option(entry, CONF_SOURCES, {}).get(
+            SOURCE_POLLENINFORMATION, {}
+        )
 
         if user_input is not None:
-            if not user_input[CONF_ALLERGENS]:
-                errors[CONF_ALLERGENS] = "no_allergens"
-            else:
-                return self.async_create_entry(data=user_input)
+            allergens = user_input[CONF_ALLERGENS]
+            enable_pi = user_input.get(CONF_ENABLE_PI, False)
+            country = user_input.get(CONF_COUNTRY)
+            api_key = user_input.get(CONF_API_KEY, "")
 
-        current_allergens = _entry_option(
-            self.config_entry, CONF_ALLERGENS, DEFAULT_ALLERGENS
-        )
+            if not allergens:
+                errors[CONF_ALLERGENS] = "no_allergens"
+            if enable_pi:
+                if not country:
+                    errors[CONF_COUNTRY] = "country_required"
+                if not api_key:
+                    errors[CONF_API_KEY] = "api_key_required"
+                if not errors:
+                    error = await _async_probe_polleninformation(
+                        self.hass,
+                        entry.data[CONF_LATITUDE],
+                        entry.data[CONF_LONGITUDE],
+                        country,
+                        api_key,
+                        allergens,
+                    )
+                    if error:
+                        errors["base"] = error
+
+            if not errors:
+                return self.async_create_entry(
+                    data={
+                        CONF_ALLERGENS: allergens,
+                        CONF_UPDATE_INTERVAL: user_input[CONF_UPDATE_INTERVAL],
+                        CONF_SOURCES: {
+                            SOURCE_OPEN_METEO: {CONF_ENABLED: True},
+                            SOURCE_POLLENINFORMATION: {
+                                CONF_ENABLED: enable_pi,
+                                CONF_API_KEY: api_key if enable_pi else "",
+                                CONF_COUNTRY: country if enable_pi else "",
+                            },
+                        },
+                    }
+                )
+
+        current_allergens = _entry_option(entry, CONF_ALLERGENS, DEFAULT_ALLERGENS)
         current_interval = _entry_option(
-            self.config_entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_MIN
+            entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_MIN
         )
+        default_country = pi_cfg.get(CONF_COUNTRY) or self._supported_default_country()
         schema = vol.Schema(
             {
                 vol.Required(
@@ -173,6 +259,17 @@ class PollenWatchOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_UPDATE_INTERVAL, default=current_interval
                 ): _INTERVAL_SELECTOR,
+                vol.Required(
+                    CONF_ENABLE_PI, default=pi_cfg.get(CONF_ENABLED, False)
+                ): selector.BooleanSelector(),
+                vol.Optional(
+                    CONF_COUNTRY,
+                    description={"suggested_value": default_country},
+                ): _COUNTRY_SELECTOR,
+                vol.Optional(
+                    CONF_API_KEY,
+                    description={"suggested_value": pi_cfg.get(CONF_API_KEY) or None},
+                ): _API_KEY_SELECTOR,
             }
         )
         return self.async_show_form(

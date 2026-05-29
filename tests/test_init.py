@@ -22,6 +22,8 @@ from custom_components.pollenwatch import async_migrate_entry
 from custom_components.pollenwatch.const import (
     ATTRIBUTION_CAMS,
     CONF_ALLERGENS,
+    CONF_API_KEY,
+    CONF_COUNTRY,
     CONF_ENABLED,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
@@ -31,6 +33,14 @@ from custom_components.pollenwatch.const import (
     new_sources_config,
 )
 from custom_components.pollenwatch.sources.open_meteo import OpenMeteoSource
+from custom_components.pollenwatch.sources.polleninformation import (
+    PolleninformationSource,
+)
+
+_PI_FETCH = (
+    "custom_components.pollenwatch.sources.polleninformation."
+    "PolleninformationSource.async_fetch"
+)
 
 _SESSION = "custom_components.pollenwatch.coordinator.async_get_clientsession"
 _FETCH = "custom_components.pollenwatch.sources.open_meteo.OpenMeteoSource.async_fetch"
@@ -191,6 +201,79 @@ async def test_migrate_is_idempotent_on_v2(hass: HomeAssistant) -> None:
     assert await async_migrate_entry(hass, entry) is True
     assert entry.version == 2
     assert dict(entry.options) == before
+
+
+def _pi_result():
+    payload = {
+        "contamination": [
+            {"poll_id": 5, "poll_title": "grasses (Poaceae)",
+             "contamination_1": 3, "contamination_2": 2,
+             "contamination_3": 2, "contamination_4": 1},
+            {"poll_id": 2, "poll_title": "birch (Betula)",
+             "contamination_1": 0, "contamination_2": 0,
+             "contamination_3": 0, "contamination_4": 0},
+        ],
+        "allergyrisk": {},
+        "allergyrisk_hourly": {},
+    }
+    return PolleninformationSource(
+        47.07, 15.44, "AT", "k", ["grass", "birch"]
+    ).parse(payload)
+
+
+def _two_source_entry() -> MockConfigEntry:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="47.0700_15.4400",
+        title="PollenWatch (47.070, 15.440)",
+        data={
+            CONF_LATITUDE: 47.07,
+            CONF_LONGITUDE: 15.44,
+            CONF_ALLERGENS: ["grass", "birch"],
+        },
+        options={
+            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SOURCES: {
+                SOURCE_OPEN_METEO: {CONF_ENABLED: True},
+                SOURCE_POLLENINFORMATION: {
+                    CONF_ENABLED: True,
+                    CONF_API_KEY: "placeholder-key",
+                    CONF_COUNTRY: "AT",
+                },
+            },
+        },
+    )
+
+
+async def test_two_sources_coexist(hass: HomeAssistant) -> None:
+    entry = _two_source_entry()
+    entry.add_to_hass(hass)
+
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),
+        patch(_PI_FETCH, new=AsyncMock(return_value=_pi_result())),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # Open-Meteo: grains/m³ concentration.
+    om = hass.states.get("sensor.pollenwatch_open_meteo_grass")
+    assert om is not None
+    assert om.attributes.get("unit_of_measurement") == "grains/m³"
+
+    # polleninformation: native 0–4 index, NO concentration unit.
+    pi = hass.states.get("sensor.pollenwatch_polleninformation_grass")
+    assert pi is not None
+    assert pi.state == "3"
+    assert pi.attributes.get("unit_of_measurement") is None
+    assert pi.attributes["forecast"] == [
+        {"date": pi.attributes["forecast"][0]["date"], "value": 3},
+        {"date": pi.attributes["forecast"][1]["date"], "value": 2},
+        {"date": pi.attributes["forecast"][2]["date"], "value": 2},
+        {"date": pi.attributes["forecast"][3]["date"], "value": 1},
+    ]
 
 
 async def test_unload_entry(hass: HomeAssistant) -> None:

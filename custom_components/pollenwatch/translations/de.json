@@ -31,15 +31,26 @@
         "description": "Der Standort ist fest; zum Ändern die Integration entfernen und neu hinzufügen.",
         "data": {
           "allergens": "Allergene",
-          "update_interval": "Aktualisierungsintervall (Minuten)"
+          "update_interval": "Aktualisierungsintervall (Minuten)",
+          "enable_polleninformation": "polleninformation.at aktivieren (zweite Quelle)",
+          "country": "Land (polleninformation)",
+          "api_key": "polleninformation API-Schlüssel"
         },
         "data_description": {
-          "update_interval": "Wie oft Open-Meteo abgefragt wird. Mindestens 60 Minuten, um die kostenlose öffentliche API zu schonen."
+          "update_interval": "Wie oft Open-Meteo abgefragt wird. Mindestens 60 Minuten, um die kostenlose öffentliche API zu schonen.",
+          "enable_polleninformation": "Fügt eine zweite Quelle hinzu. Benötigt einen kostenlosen API-Schlüssel von polleninformation.at.",
+          "country": "Das Land, dessen Pollennetz deinen Standort abdeckt.",
+          "api_key": "Wird in Home Assistant verschlüsselt gespeichert; nie im Klartext auf die Festplatte geschrieben."
         }
       }
     },
     "error": {
-      "no_allergens": "Wähle mindestens ein Allergen aus."
+      "no_allergens": "Wähle mindestens ein Allergen aus.",
+      "country_required": "Wähle ein Land, um polleninformation zu aktivieren.",
+      "api_key_required": "Gib deinen polleninformation API-Schlüssel ein.",
+      "invalid_api_key": "polleninformation hat den API-Schlüssel abgelehnt. Bitte prüfen und erneut versuchen.",
+      "out_of_coverage": "polleninformation hat keine Daten für diesen Standort im gewählten Land.",
+      "cannot_connect": "polleninformation konnte nicht erreicht werden. Prüfe deine Verbindung und versuche es erneut."
     }
   },
   "selector": {
@@ -51,6 +62,23 @@
         "mugwort": "Beifuß",
         "olive": "Olive",
         "ragweed": "Ambrosia"
+      }
+    },
+    "country": {
+      "options": {
+        "AT": "Österreich",
+        "CH": "Schweiz",
+        "DE": "Deutschland",
+        "ES": "Spanien",
+        "FR": "Frankreich",
+        "GB": "Vereinigtes Königreich",
+        "IT": "Italien",
+        "LV": "Lettland",
+        "LT": "Litauen",
+        "PL": "Polen",
+        "SE": "Schweden",
+        "TR": "Türkei",
+        "UA": "Ukraine"
       }
     }
   },
