@@ -27,11 +27,12 @@ async def async_setup_entry(
     """Set up PollenWatch from a config entry."""
     from homeassistant.const import Platform
 
-    from .coordinator import OpenMeteoDataUpdateCoordinator
+    from .coordinator import PollenWatchData, build_coordinators
 
-    coordinator = OpenMeteoDataUpdateCoordinator(hass, entry)
-    await coordinator.async_config_entry_first_refresh()
-    entry.runtime_data = coordinator
+    coordinators = build_coordinators(hass, entry)
+    for coordinator in coordinators.values():
+        await coordinator.async_config_entry_first_refresh()
+    entry.runtime_data = PollenWatchData(coordinators=coordinators)
 
     await hass.config_entries.async_forward_entry_setups(
         entry, [Platform(p) for p in PLATFORMS]

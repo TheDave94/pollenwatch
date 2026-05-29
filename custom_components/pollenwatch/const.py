@@ -27,6 +27,22 @@ ATTRIBUTION_CAMS: Final = (
 SOURCE_OPEN_METEO: Final = "open_meteo"
 SOURCE_OPEN_METEO_NAME: Final = "Open-Meteo (CAMS)"
 
+# Per-source device presentation, keyed by source slug. The device NAME slugs to
+# the entity-ID prefix (sensor.pollenwatch_<source>_<allergen>); these strings
+# are load-bearing for existing entities and must stay stable.
+SOURCE_DEVICE_NAMES: Final[dict[str, str]] = {
+    SOURCE_OPEN_METEO: "PollenWatch Open-Meteo",
+}
+SOURCE_DEVICE_MODELS: Final[dict[str, str]] = {
+    SOURCE_OPEN_METEO: "CAMS via Open-Meteo",
+}
+SOURCE_CONFIG_URLS: Final[dict[str, str]] = {
+    SOURCE_OPEN_METEO: "https://open-meteo.com/",
+}
+SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
+    SOURCE_OPEN_METEO: ATTRIBUTION_CAMS,
+}
+
 # Config-entry / options keys. Location uses homeassistant.const
 # CONF_LATITUDE / CONF_LONGITUDE; these are PollenWatch-specific.
 CONF_ALLERGENS: Final = "allergens"

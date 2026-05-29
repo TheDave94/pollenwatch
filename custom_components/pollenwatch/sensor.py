@@ -28,13 +28,12 @@ from .const import (
     ATTRIBUTION_CAMS,
     DOMAIN,
     FORECAST_DAYS,
-    SOURCE_OPEN_METEO,
+    SOURCE_ATTRIBUTIONS,
+    SOURCE_CONFIG_URLS,
+    SOURCE_DEVICE_MODELS,
+    SOURCE_DEVICE_NAMES,
 )
-from .coordinator import OpenMeteoDataUpdateCoordinator, PollenWatchConfigEntry
-
-# Device name whose slug forms the entity-ID prefix
-# (sensor.pollenwatch_open_meteo_<allergen>); "(CAMS)" lives in the model field.
-_DEVICE_NAME = "PollenWatch Open-Meteo"
+from .coordinator import PollenWatchConfigEntry, PollenWatchSourceCoordinator
 
 
 async def async_setup_entry(
@@ -45,27 +44,34 @@ async def async_setup_entry(
     """Set up PollenWatch sensors for a config entry.
 
     Runs on every reload (including after an options change), so it also prunes
-    registry entries for allergens that are no longer configured.
+    registry entries for allergens no longer configured for each source.
     """
-    coordinator = entry.runtime_data
-    configured = list(coordinator.source.allergens)
-    _async_remove_deconfigured_entities(hass, entry, set(configured))
-    async_add_entities(
-        PollenWatchSensor(coordinator, allergen) for allergen in configured
-    )
+    coordinators = entry.runtime_data.coordinators
+    entities: list[PollenWatchSensor] = []
+    for source_key, coordinator in coordinators.items():
+        configured = list(coordinator.source.allergens)
+        _async_remove_deconfigured_entities(hass, entry, source_key, set(configured))
+        entities.extend(
+            PollenWatchSensor(coordinator, source_key, allergen)
+            for allergen in configured
+        )
+    async_add_entities(entities)
 
 
 @callback
 def _async_remove_deconfigured_entities(
-    hass: HomeAssistant, entry: PollenWatchConfigEntry, configured: set[str]
+    hass: HomeAssistant,
+    entry: PollenWatchConfigEntry,
+    source_key: str,
+    configured: set[str],
 ) -> None:
-    """Remove sensor entities for allergens no longer in the configured set.
+    """Remove a source's sensor entities for allergens no longer configured.
 
     Without this, deselecting an allergen in the options flow would leave the
     sensor lingering as ``unavailable`` in the registry instead of disappearing.
     """
     registry = er.async_get(hass)
-    prefix = f"{entry.entry_id}_{SOURCE_OPEN_METEO}_"
+    prefix = f"{entry.entry_id}_{source_key}_"
     for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
         if reg_entry.unique_id.startswith(prefix):
             allergen = reg_entry.unique_id[len(prefix):]
@@ -94,31 +100,34 @@ def _daily_peak_forecast(
 
 
 class PollenWatchSensor(
-    CoordinatorEntity[OpenMeteoDataUpdateCoordinator], SensorEntity
+    CoordinatorEntity[PollenWatchSourceCoordinator], SensorEntity
 ):
-    """Current pollen concentration for one allergen from Open-Meteo."""
+    """Current pollen concentration for one allergen from one source."""
 
     _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "grains/m³"
-    _attr_attribution = ATTRIBUTION_CAMS
     _attr_icon = "mdi:flower-pollen"
 
     def __init__(
-        self, coordinator: OpenMeteoDataUpdateCoordinator, allergen: str
+        self,
+        coordinator: PollenWatchSourceCoordinator,
+        source_key: str,
+        allergen: str,
     ) -> None:
         super().__init__(coordinator)
         self._allergen = allergen
         entry = coordinator.config_entry
-        self._attr_unique_id = f"{entry.entry_id}_{SOURCE_OPEN_METEO}_{allergen}"
+        self._attr_unique_id = f"{entry.entry_id}_{source_key}_{allergen}"
         self._attr_translation_key = allergen
+        self._attr_attribution = SOURCE_ATTRIBUTIONS.get(source_key, ATTRIBUTION_CAMS)
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{entry.entry_id}_{SOURCE_OPEN_METEO}")},
-            name=_DEVICE_NAME,
+            identifiers={(DOMAIN, f"{entry.entry_id}_{source_key}")},
+            name=SOURCE_DEVICE_NAMES[source_key],
             manufacturer="PollenWatch",
-            model="CAMS via Open-Meteo",
+            model=SOURCE_DEVICE_MODELS.get(source_key),
             entry_type=DeviceEntryType.SERVICE,
-            configuration_url="https://open-meteo.com/",
+            configuration_url=SOURCE_CONFIG_URLS.get(source_key),
         )
 
     @property

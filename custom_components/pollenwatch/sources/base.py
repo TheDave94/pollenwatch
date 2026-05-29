@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any, Protocol, runtime_checkable
 
 # Canonical allergen keys understood by the source layer. Individual sources
 # expose a subset of these. The analytics layer reconciles sources by this key.
@@ -124,6 +125,20 @@ class SourceResult:
             except ValueError:
                 pass
         return 0
+
+
+@runtime_checkable
+class PollenSource(Protocol):
+    """Structural interface every source client satisfies.
+
+    Lets the per-source coordinator stay source-agnostic. ``session`` is typed
+    loosely (``Any``) so this module need not import aiohttp.
+    """
+
+    name: str
+    allergens: list[str]
+
+    async def async_fetch(self, session: Any = None) -> SourceResult: ...
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
