@@ -135,6 +135,13 @@ reading, not away — **not** a statistical necessity.
 `mixed`: on when source levels differ by **>1**. The ">1" threshold is tunable
 (see REVIEW_QUEUE) once we observe how often it fires on real dual-source data.
 
-Entity IDs are the documented contract `sensor.pollenwatch_consensus_<species>`
-and `binary_sensor.pollenwatch_divergence_<species>` (explicit names, so the
-"PollenWatch Analytics" device slug isn't prefixed); both sit under that device.
+**Entity IDs (HA 2026.5 constraint):** both sit under a "PollenWatch Analytics"
+device, and on HA 2026.5 a device-associated entity's ID is **always**
+`<device_slug>_<name>` — the device prefix can't be suppressed (confirmed with
+has_entity_name False/True and an explicit `self.entity_id`, on a cleared
+registry). So the IDs are
+`sensor.pollenwatch_analytics_<species>_consensus` and
+`binary_sensor.pollenwatch_analytics_<species>_divergence`, **not** the originally
+intended `sensor.pollenwatch_consensus_<species>`. Getting the un-prefixed form
+would require dropping the Analytics device. Flagged in REVIEW_QUEUE for the
+maintainer.
