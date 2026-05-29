@@ -1,10 +1,67 @@
 {
+  "title": "PollenWatch",
   "config": {
     "step": {
       "user": {
-        "title": "PollenWatch",
-        "description": "Pollendaten aus mehreren europäischen Quellen."
+        "title": "PollenWatch-Standort hinzufügen",
+        "description": "Die Pollendaten stammen vom Copernicus Atmosphere Monitoring Service (CAMS) über Open-Meteo und decken Europa ab. Der Standort ist nach dem Einrichten fest — zum Ändern die Integration entfernen und neu hinzufügen.",
+        "data": {
+          "location": "Standort",
+          "allergens": "Allergene"
+        },
+        "data_description": {
+          "location": "Wähle den zu überwachenden Punkt. Open-Meteo rundet ihn auf die nächste Rasterzelle (~10 km).",
+          "allergens": "Für welche Pollenarten Sensoren erstellt werden sollen."
+        }
       }
+    },
+    "error": {
+      "out_of_coverage": "Dieser Standort liegt außerhalb der europäischen CAMS-Abdeckung. Wähle einen Standort innerhalb Europas.",
+      "cannot_connect": "Open-Meteo konnte nicht erreicht werden. Prüfe deine Verbindung und versuche es erneut.",
+      "no_allergens": "Wähle mindestens ein Allergen aus."
+    },
+    "abort": {
+      "already_configured": "Dieser Standort ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "PollenWatch-Optionen",
+        "description": "Der Standort ist fest; zum Ändern die Integration entfernen und neu hinzufügen.",
+        "data": {
+          "allergens": "Allergene",
+          "update_interval": "Aktualisierungsintervall (Minuten)"
+        },
+        "data_description": {
+          "update_interval": "Wie oft Open-Meteo abgefragt wird. Mindestens 60 Minuten, um die kostenlose öffentliche API zu schonen."
+        }
+      }
+    },
+    "error": {
+      "no_allergens": "Wähle mindestens ein Allergen aus."
+    }
+  },
+  "selector": {
+    "allergen": {
+      "options": {
+        "alder": "Erle",
+        "birch": "Birke",
+        "grass": "Gräser",
+        "mugwort": "Beifuß",
+        "olive": "Olive",
+        "ragweed": "Ambrosia"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "alder": { "name": "Erle" },
+      "birch": { "name": "Birke" },
+      "grass": { "name": "Gräser" },
+      "mugwort": { "name": "Beifuß" },
+      "olive": { "name": "Olive" },
+      "ragweed": { "name": "Ambrosia" }
     }
   }
 }
