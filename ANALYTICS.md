@@ -75,12 +75,18 @@ entities via `ha.py` (key stays in HA's encrypted config — never enters chat):
   allergen (404), while raw + `_personal_score` do — the Milestone-A flag works
   end-to-end on the real instance.
 
-**Verbatim High (4) / Very High (5) strings: still pending** — but unblocked.
-These are Google's *published* category documentation, not instance data, so
-the capture is just a transcription from Google's docs whenever convenient; it
-needs neither a parser change nor a high-UPI day. The mapping keys on the
-documented category name, not the prose, so it does not depend on this capture.
-Queued in REVIEW_QUEUE.
+**Verbatim High (4) / Very High (5) strings: not capturable from Google's static
+docs.** A re-check confirmed Google's `/forecast` guide publishes example
+responses with `indexDescription` for **UPI 0, 1, 2 only** (the 3 description
+came from a third-party blog showing a real response); UPI 4 and 5 do not
+appear anywhere on Google's static documentation pages. Those strings ship
+*dynamically* in the API response's `indexDescription` field when a real call
+hits those bands — they are not in published category docs. Recording them
+statically would therefore need either a parser change to surface
+`indexDescription` onto the entity (declined this rc as enlarging the live
+product for a footnote) or a paid query at a high-pollen location. The mapping
+keys on the documented category *name* (which IS published for all six), not on
+the prose, so this footnote does not gate the logic. See REVIEW_QUEUE.
 
 ## Threshold finding (research 2026-05-29)
 
