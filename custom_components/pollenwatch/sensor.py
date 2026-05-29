@@ -295,9 +295,11 @@ class ConsensusSensor(
         super().__init__(coordinator)
         self._species = species
         self._attr_unique_id = f"{entry.entry_id}_consensus_{species}"
-        # slug -> sensor.pollenwatch_consensus_<species>
         self._attr_name = f"PollenWatch Consensus {ALLERGEN_NAMES.get(species, species)}"
         self._attr_device_info = analytics_device_info(entry)
+        # HA 2026.5 device-prefixes the derived entity ID regardless of
+        # has_entity_name, so force the documented contract ID explicitly.
+        self.entity_id = f"sensor.{DOMAIN}_consensus_{species}"
 
     def _result(self):
         return self.coordinator.data.consensus.get(self._species)
