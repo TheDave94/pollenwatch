@@ -60,11 +60,29 @@ keeps Google parallel to the polleninformation top-two→2 collapse. Like the
 others, this is an **operational alignment, not a sourced equivalence**: the
 3-level scale is EAACI-sourced; aligning Google's six bands onto it is editorial.
 All six **category names** are documented (Google RPC reference). The 0–3
-**descriptions** above are quoted verbatim from Google's docs; the verbatim
-`indexDescription` strings for **High (4)** and **Very High (5)** will be
-recorded here from the live API on the first on-instance validation (Graz is
-covered — see HA_COMPATIBILITY / release notes). The mapping keys on the
-documented category, not the prose, so it does not depend on that capture.
+**descriptions** above are quoted verbatim from Google's docs.
+
+**On-instance live check (2026-05-29, Graz, v1.2.0-rc1).** Read off the live HA
+entities via `ha.py` (key stays in HA's encrypted config — never enters chat):
+- Raw sensors populate on the UPI 0–5 scale, unit `None`, attribution `Source:
+  Includes pollen data from Google`, with a 4-day forward forecast attribute.
+- Cross-source consensus picks Google up (`source_levels` includes `google`):
+  e.g. grass `{open_meteo:1, polleninformation:2, google:1}` → `high`; olive
+  `{open_meteo:0, polleninformation:0, google:1}` → `low` (Google is the only
+  source enabling an olive consensus at Graz).
+- **`supports_history=False` payoff confirmed live:** *no*
+  `sensor.pollenwatch_google_*_recent_percentile` entity exists for any Google
+  allergen (404), while raw + `_personal_score` do — the Milestone-A flag works
+  end-to-end on the real instance.
+
+**Verbatim High (4) / Very High (5) strings: still pending**, on two counts.
+Today's Graz UPI was only 1–3 (grass 3 / birch 1 / olive 1), so 4/5 didn't
+occur. *And* the current parser stores only `indexInfo.value`; the entity
+carries no `category` or `indexDescription` attribute, so even on a future day
+when Graz hits 4/5 the queued "read off the live entity" workflow needs a small
+parser+sensor patch to surface those attributes first. See REVIEW_QUEUE for the
+dependency. The mapping keys on the documented category, not the prose, so it
+does not depend on this capture.
 
 ## Threshold finding (research 2026-05-29)
 
