@@ -52,6 +52,14 @@ class SourceResponseError(SourceError):
     """
 
 
+class SourceAuthError(SourceError):
+    """The source rejected the credentials (e.g. invalid/expired API key).
+
+    Distinct from the transient/coverage errors: it requires the user to fix
+    the credential, so it should drive a re-auth / repair flow.
+    """
+
+
 @dataclass(slots=True)
 class AllergenSeries:
     """A single allergen's values for one source result.
@@ -62,7 +70,7 @@ class AllergenSeries:
     """
 
     allergen: str
-    unit: str
+    unit: str | None
     current: float | None
     values: list[float | None] = field(default_factory=list)
 
