@@ -75,14 +75,12 @@ entities via `ha.py` (key stays in HA's encrypted config — never enters chat):
   allergen (404), while raw + `_personal_score` do — the Milestone-A flag works
   end-to-end on the real instance.
 
-**Verbatim High (4) / Very High (5) strings: still pending**, on two counts.
-Today's Graz UPI was only 1–3 (grass 3 / birch 1 / olive 1), so 4/5 didn't
-occur. *And* the current parser stores only `indexInfo.value`; the entity
-carries no `category` or `indexDescription` attribute, so even on a future day
-when Graz hits 4/5 the queued "read off the live entity" workflow needs a small
-parser+sensor patch to surface those attributes first. See REVIEW_QUEUE for the
-dependency. The mapping keys on the documented category, not the prose, so it
-does not depend on this capture.
+**Verbatim High (4) / Very High (5) strings: still pending** — but unblocked.
+These are Google's *published* category documentation, not instance data, so
+the capture is just a transcription from Google's docs whenever convenient; it
+needs neither a parser change nor a high-UPI day. The mapping keys on the
+documented category name, not the prose, so it does not depend on this capture.
+Queued in REVIEW_QUEUE.
 
 ## Threshold finding (research 2026-05-29)
 
