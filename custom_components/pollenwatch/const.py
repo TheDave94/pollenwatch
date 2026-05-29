@@ -52,6 +52,13 @@ SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
 CONF_ALLERGENS: Final = "allergens"
 CONF_UPDATE_INTERVAL: Final = "update_interval"  # minutes
 
+# Personal sensitivity multipliers (per species), applied to raw values to give
+# a personal_score. Stored in options under CONF_SENSITIVITY as {species: float}.
+CONF_SENSITIVITY: Final = "sensitivity"
+DEFAULT_SENSITIVITY: Final = 1.0
+MIN_SENSITIVITY: Final = 0.0
+MAX_SENSITIVITY: Final = 2.0
+
 # Multi-source enablement (config-entry version 2). Stored in options under
 # CONF_SOURCES as {source_key: {enabled: bool, api_key?: str}}.
 CONF_SOURCES: Final = "sources"
@@ -117,3 +124,4 @@ ATTR_SNAPPED_LAT: Final = "snapped_latitude"
 ATTR_SNAPPED_LON: Final = "snapped_longitude"
 ATTR_GRID_SHIFT_KM: Final = "grid_shift_km"
 ATTR_LAST_UPDATED: Final = "source_last_updated"
+ATTR_MULTIPLIER: Final = "multiplier"

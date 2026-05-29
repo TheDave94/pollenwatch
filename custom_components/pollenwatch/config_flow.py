@@ -25,16 +25,21 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     ALLERGEN_NAMES,
+    ALLERGENS,
     CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
+    CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
     DEFAULT_ALLERGENS,
+    DEFAULT_SENSITIVITY,
     DEFAULT_UPDATE_INTERVAL_MIN,
     DOMAIN,
+    MAX_SENSITIVITY,
     MAX_UPDATE_INTERVAL_MIN,
+    MIN_SENSITIVITY,
     MIN_UPDATE_INTERVAL_MIN,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
@@ -79,6 +84,19 @@ _COUNTRY_SELECTOR = selector.CountrySelector(
 _API_KEY_SELECTOR = selector.TextSelector(
     selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
 )
+
+_SENSITIVITY_SELECTOR = selector.NumberSelector(
+    selector.NumberSelectorConfig(
+        min=MIN_SENSITIVITY,
+        max=MAX_SENSITIVITY,
+        step=0.1,
+        mode=selector.NumberSelectorMode.SLIDER,
+    )
+)
+
+
+def _sensitivity_field(species: str) -> str:
+    return f"{CONF_SENSITIVITY}_{species}"
 
 
 async def _async_probe_polleninformation(
@@ -226,10 +244,16 @@ class PollenWatchOptionsFlow(OptionsFlow):
                         errors["base"] = error
 
             if not errors:
+                sensitivity = {
+                    species: user_input[_sensitivity_field(species)]
+                    for species in ALLERGENS
+                    if _sensitivity_field(species) in user_input
+                }
                 return self.async_create_entry(
                     data={
                         CONF_ALLERGENS: allergens,
                         CONF_UPDATE_INTERVAL: user_input[CONF_UPDATE_INTERVAL],
+                        CONF_SENSITIVITY: sensitivity,
                         CONF_SOURCES: {
                             SOURCE_OPEN_METEO: {CONF_ENABLED: True},
                             SOURCE_POLLENINFORMATION: {
@@ -246,27 +270,34 @@ class PollenWatchOptionsFlow(OptionsFlow):
             entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_MIN
         )
         default_country = pi_cfg.get(CONF_COUNTRY) or self._supported_default_country()
-        schema = vol.Schema(
-            {
-                vol.Required(
-                    CONF_ALLERGENS, default=current_allergens
-                ): _ALLERGEN_SELECTOR,
-                vol.Required(
-                    CONF_UPDATE_INTERVAL, default=current_interval
-                ): _INTERVAL_SELECTOR,
-                vol.Required(
-                    CONF_ENABLE_PI, default=pi_cfg.get(CONF_ENABLED, False)
-                ): selector.BooleanSelector(),
+        current_sensitivity = _entry_option(entry, CONF_SENSITIVITY, {})
+        schema_dict = {
+            vol.Required(
+                CONF_ALLERGENS, default=current_allergens
+            ): _ALLERGEN_SELECTOR,
+            vol.Required(
+                CONF_UPDATE_INTERVAL, default=current_interval
+            ): _INTERVAL_SELECTOR,
+            vol.Required(
+                CONF_ENABLE_PI, default=pi_cfg.get(CONF_ENABLED, False)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_COUNTRY,
+                description={"suggested_value": default_country},
+            ): _COUNTRY_SELECTOR,
+            vol.Optional(
+                CONF_API_KEY,
+                description={"suggested_value": pi_cfg.get(CONF_API_KEY) or None},
+            ): _API_KEY_SELECTOR,
+        }
+        # Personal sensitivity multipliers (one per species).
+        for species in ALLERGENS:
+            schema_dict[
                 vol.Optional(
-                    CONF_COUNTRY,
-                    description={"suggested_value": default_country},
-                ): _COUNTRY_SELECTOR,
-                vol.Optional(
-                    CONF_API_KEY,
-                    description={"suggested_value": pi_cfg.get(CONF_API_KEY) or None},
-                ): _API_KEY_SELECTOR,
-            }
-        )
+                    _sensitivity_field(species),
+                    default=current_sensitivity.get(species, DEFAULT_SENSITIVITY),
+                )
+            ] = _SENSITIVITY_SELECTOR
         return self.async_show_form(
-            step_id="init", data_schema=schema, errors=errors
+            step_id="init", data_schema=vol.Schema(schema_dict), errors=errors
         )

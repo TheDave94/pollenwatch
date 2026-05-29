@@ -34,7 +34,13 @@
           "update_interval": "Update interval (minutes)",
           "enable_polleninformation": "Enable polleninformation.at (second source)",
           "country": "Country (polleninformation)",
-          "api_key": "polleninformation API key"
+          "api_key": "polleninformation API key",
+          "sensitivity_alder": "Alder sensitivity (×)",
+          "sensitivity_birch": "Birch sensitivity (×)",
+          "sensitivity_grass": "Grass sensitivity (×)",
+          "sensitivity_mugwort": "Mugwort sensitivity (×)",
+          "sensitivity_olive": "Olive sensitivity (×)",
+          "sensitivity_ragweed": "Ragweed sensitivity (×)"
         },
         "data_description": {
           "update_interval": "How often to poll Open-Meteo. Minimum 60 minutes to be a good citizen on a free public API.",

@@ -34,7 +34,13 @@
           "update_interval": "Aktualisierungsintervall (Minuten)",
           "enable_polleninformation": "polleninformation.at aktivieren (zweite Quelle)",
           "country": "Land (polleninformation)",
-          "api_key": "polleninformation API-Schlüssel"
+          "api_key": "polleninformation API-Schlüssel",
+          "sensitivity_alder": "Erle-Empfindlichkeit (×)",
+          "sensitivity_birch": "Birke-Empfindlichkeit (×)",
+          "sensitivity_grass": "Gräser-Empfindlichkeit (×)",
+          "sensitivity_mugwort": "Beifuß-Empfindlichkeit (×)",
+          "sensitivity_olive": "Olive-Empfindlichkeit (×)",
+          "sensitivity_ragweed": "Ambrosia-Empfindlichkeit (×)"
         },
         "data_description": {
           "update_interval": "Wie oft Open-Meteo abgefragt wird. Mindestens 60 Minuten, um die kostenlose öffentliche API zu schonen.",

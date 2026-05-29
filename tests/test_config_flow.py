@@ -10,12 +10,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.pollenwatch.config_flow import CONF_ENABLE_PI
+from custom_components.pollenwatch.config_flow import CONF_ENABLE_PI, _sensitivity_field
 from custom_components.pollenwatch.const import (
     CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
+    CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
     DOMAIN,
@@ -194,6 +195,30 @@ async def test_options_pi_out_of_coverage_errors(hass: HomeAssistant) -> None:
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "out_of_coverage"}
+
+
+async def test_options_store_sensitivity_multiplier(hass: HomeAssistant) -> None:
+    entry = _options_entry()
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_UPDATE_INTERVAL: 60,
+            CONF_ENABLE_PI: False,
+            _sensitivity_field("grass"): 1.8,
+            _sensitivity_field("birch"): 0.5,
+        },
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    sensitivity = entry.options[CONF_SENSITIVITY]
+    assert sensitivity["grass"] == 1.8
+    assert sensitivity["birch"] == 0.5
+    # Unspecified species fall back to the default (1.0) in the form.
+    assert sensitivity["olive"] == 1.0
 
 
 async def test_options_pi_requires_country_and_key(hass: HomeAssistant) -> None:

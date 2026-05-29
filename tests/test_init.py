@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
@@ -25,6 +26,7 @@ from custom_components.pollenwatch.const import (
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
+    CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
     DOMAIN,
@@ -274,6 +276,43 @@ async def test_two_sources_coexist(hass: HomeAssistant) -> None:
         {"date": pi.attributes["forecast"][2]["date"], "value": 2},
         {"date": pi.attributes["forecast"][3]["date"], "value": 1},
     ]
+
+
+async def test_personal_score_applies_multiplier(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="47.0700_15.4400",
+        data={
+            CONF_LATITUDE: 47.07,
+            CONF_LONGITUDE: 15.44,
+            CONF_ALLERGENS: ["grass", "birch"],
+        },
+        options={
+            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SENSITIVITY: {"grass": 1.5},  # birch defaults to 1.0
+            CONF_SOURCES: new_sources_config(),
+        },
+    )
+    entry.add_to_hass(hass)
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),  # grass current 20.8
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    grass = hass.states.get("sensor.pollenwatch_open_meteo_grass_personal_score")
+    assert grass is not None
+    assert float(grass.state) == pytest.approx(20.8 * 1.5)
+    assert grass.attributes["multiplier"] == 1.5
+    assert grass.attributes["unit_of_measurement"] == "grains/m³"
+
+    # birch (no multiplier configured) -> 1.0, so equals raw (0.1)
+    birch = hass.states.get("sensor.pollenwatch_open_meteo_birch_personal_score")
+    assert birch is not None
+    assert float(birch.state) == pytest.approx(0.1)
+    assert birch.attributes["multiplier"] == 1.0
 
 
 async def test_unload_entry(hass: HomeAssistant) -> None:

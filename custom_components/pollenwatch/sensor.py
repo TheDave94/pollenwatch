@@ -23,11 +23,14 @@ from .const import (
     ATTR_FORECAST,
     ATTR_GRID_SHIFT_KM,
     ATTR_LAST_UPDATED,
+    ATTR_MULTIPLIER,
     ATTR_REQUESTED_LAT,
     ATTR_REQUESTED_LON,
     ATTR_SNAPPED_LAT,
     ATTR_SNAPPED_LON,
     ATTRIBUTION_CAMS,
+    CONF_SENSITIVITY,
+    DEFAULT_SENSITIVITY,
     DOMAIN,
     FORECAST_DAYS,
     SOURCE_ATTRIBUTIONS,
@@ -39,6 +42,7 @@ from .coordinator import (
     PollenWatchAnalyticsCoordinator,
     PollenWatchConfigEntry,
     PollenWatchSourceCoordinator,
+    _entry_option,
 )
 
 # Extra-state-attribute keys for the recent_percentile sensor.
@@ -69,6 +73,7 @@ async def async_setup_entry(
     """
     runtime = entry.runtime_data
     analytics = runtime.analytics
+    sensitivity = _entry_option(entry, CONF_SENSITIVITY, {})
     entities: list[SensorEntity] = []
     for source_key, coordinator in runtime.coordinators.items():
         # Keep registry entries for every configured allergen (so a transient
@@ -81,6 +86,15 @@ async def async_setup_entry(
         present = [a for a in coordinator.source.allergens if a in coordinator.data.allergens]
         for allergen in present:
             entities.append(PollenWatchSensor(coordinator, source_key, allergen))
+            entities.append(
+                PersonalScoreSensor(
+                    coordinator,
+                    entry,
+                    source_key,
+                    allergen,
+                    sensitivity.get(allergen, DEFAULT_SENSITIVITY),
+                )
+            )
             if analytics is not None:
                 entities.append(
                     RecentPercentileSensor(analytics, entry, source_key, allergen)
@@ -186,6 +200,56 @@ class PollenWatchSensor(
             ATTR_GRID_SHIFT_KM: round(shift, 2) if shift is not None else None,
             ATTR_LAST_UPDATED: result.generated_at,
         }
+
+
+class PersonalScoreSensor(
+    CoordinatorEntity[PollenWatchSourceCoordinator], SensorEntity
+):
+    """A source's raw value scaled by the user's per-species sensitivity.
+
+    personal_score = raw × multiplier (0.0–2.0). Single-source; keeps the
+    source's native unit (grains/m³ for Open-Meteo, none for the index) — it is
+    a personally-weighted value, not a cross-source comparison.
+    """
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:account-alert"
+    _attr_suggested_display_precision = 1
+
+    def __init__(
+        self,
+        coordinator: PollenWatchSourceCoordinator,
+        entry: PollenWatchConfigEntry,
+        source_key: str,
+        allergen: str,
+        multiplier: float,
+    ) -> None:
+        super().__init__(coordinator)
+        self._allergen = allergen
+        self._multiplier = float(multiplier)
+        self._attr_unique_id = (
+            f"{entry.entry_id}_{source_key}_{allergen}_personal_score"
+        )
+        self._attr_name = f"{ALLERGEN_NAMES.get(allergen, allergen)} personal score"
+        series = coordinator.data.allergens.get(allergen)
+        self._attr_native_unit_of_measurement = series.unit if series else None
+        self._attr_device_info = _source_device_info(entry, source_key)
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._allergen in self.coordinator.data.allergens
+
+    @property
+    def native_value(self) -> float | None:
+        series = self.coordinator.data.allergens.get(self._allergen)
+        if series is None or series.current is None:
+            return None
+        return series.current * self._multiplier
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {ATTR_MULTIPLIER: self._multiplier}
 
 
 class RecentPercentileSensor(
