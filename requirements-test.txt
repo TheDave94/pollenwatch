@@ -1,0 +1,5 @@
+# Test/lint toolchain, pinned for reproducible CI.
+# pytest-homeassistant-custom-component pulls in pytest, pytest-asyncio, and a
+# matching Home Assistant core version.
+ruff==0.15.15
+pytest-homeassistant-custom-component==0.13.205
