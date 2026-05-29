@@ -1,6 +1,129 @@
 """Sensor entities for PollenWatch.
 
-Stub — implemented in a later milestone.
+Milestone 2: one sensor per Open-Meteo allergen. State is the current value in
+grains/m³; the daily-peak forecast and provenance live in attributes. Entities
+sit under a per-source device (see MILESTONE_2.md Q1) and are named so their
+entity IDs slug to ``sensor.pollenwatch_open_meteo_<allergen>`` (see §7).
 """
 
 from __future__ import annotations
+
+from typing import Any
+
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import (
+    ATTR_FORECAST,
+    ATTR_GRID_SHIFT_KM,
+    ATTR_LAST_UPDATED,
+    ATTR_REQUESTED_LAT,
+    ATTR_REQUESTED_LON,
+    ATTR_SNAPPED_LAT,
+    ATTR_SNAPPED_LON,
+    ATTRIBUTION_CAMS,
+    DOMAIN,
+    FORECAST_DAYS,
+    SOURCE_OPEN_METEO,
+)
+from .coordinator import OpenMeteoDataUpdateCoordinator, PollenWatchConfigEntry
+
+# Device name whose slug forms the entity-ID prefix
+# (sensor.pollenwatch_open_meteo_<allergen>); "(CAMS)" lives in the model field.
+_DEVICE_NAME = "PollenWatch Open-Meteo"
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: PollenWatchConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up PollenWatch sensors for a config entry."""
+    coordinator = entry.runtime_data
+    async_add_entities(
+        PollenWatchSensor(coordinator, allergen)
+        for allergen in coordinator.data.allergens
+    )
+
+
+def _daily_peak_forecast(
+    times: list[str], values: list[float | None], max_days: int
+) -> list[dict[str, Any]]:
+    """Collapse the hourly series into per-day peak values.
+
+    Peaks (not means) drive allergic reactions; the partially-null 5th forecast
+    day is dropped by capping at ``max_days``.
+    """
+    peaks: dict[str, float] = {}
+    for time, value in zip(times, values, strict=False):
+        if value is None:
+            continue
+        date = time[:10]  # 'YYYY-MM-DD'
+        peaks[date] = max(peaks.get(date, value), value)
+    return [
+        {"date": date, "value": peak}
+        for date, peak in sorted(peaks.items())[:max_days]
+    ]
+
+
+class PollenWatchSensor(
+    CoordinatorEntity[OpenMeteoDataUpdateCoordinator], SensorEntity
+):
+    """Current pollen concentration for one allergen from Open-Meteo."""
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "grains/m³"
+    _attr_attribution = ATTRIBUTION_CAMS
+    _attr_icon = "mdi:flower-pollen"
+
+    def __init__(
+        self, coordinator: OpenMeteoDataUpdateCoordinator, allergen: str
+    ) -> None:
+        super().__init__(coordinator)
+        self._allergen = allergen
+        entry = coordinator.config_entry
+        self._attr_unique_id = f"{entry.entry_id}_{SOURCE_OPEN_METEO}_{allergen}"
+        self._attr_translation_key = allergen
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{entry.entry_id}_{SOURCE_OPEN_METEO}")},
+            name=_DEVICE_NAME,
+            manufacturer="PollenWatch",
+            model="CAMS via Open-Meteo",
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url="https://open-meteo.com/",
+        )
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and self._allergen in self.coordinator.data.allergens
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        series = self.coordinator.data.allergens.get(self._allergen)
+        return series.current if series else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        result = self.coordinator.data
+        series = result.allergens.get(self._allergen)
+        if series is None:
+            return None
+        shift = result.coordinate_shift_km
+        return {
+            ATTR_FORECAST: _daily_peak_forecast(
+                result.times, series.values, FORECAST_DAYS
+            ),
+            ATTR_REQUESTED_LAT: result.requested_lat,
+            ATTR_REQUESTED_LON: result.requested_lon,
+            ATTR_SNAPPED_LAT: result.snapped_lat,
+            ATTR_SNAPPED_LON: result.snapped_lon,
+            ATTR_GRID_SHIFT_KM: round(shift, 2) if shift is not None else None,
+            ATTR_LAST_UPDATED: result.generated_at,
+        }
