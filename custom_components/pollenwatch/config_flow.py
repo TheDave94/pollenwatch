@@ -70,15 +70,10 @@ _INTERVAL_SELECTOR = selector.NumberSelector(
     )
 )
 
-_COUNTRY_SELECTOR = selector.SelectSelector(
-    selector.SelectSelectorConfig(
-        options=[
-            selector.SelectOptionDict(value=code, label=code)
-            for code in SUPPORTED_COUNTRIES
-        ],
-        mode=selector.SelectSelectorMode.DROPDOWN,
-        translation_key="country",
-    )
+# HA's built-in country selector: ISO-2 values, names localised automatically,
+# bounded to the countries polleninformation serves. No translation keys needed.
+_COUNTRY_SELECTOR = selector.CountrySelector(
+    selector.CountrySelectorConfig(countries=list(SUPPORTED_COUNTRIES))
 )
 
 _API_KEY_SELECTOR = selector.TextSelector(

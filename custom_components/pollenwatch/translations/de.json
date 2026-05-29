@@ -63,33 +63,28 @@
         "olive": "Olive",
         "ragweed": "Ambrosia"
       }
-    },
-    "country": {
-      "options": {
-        "AT": "Österreich",
-        "CH": "Schweiz",
-        "DE": "Deutschland",
-        "ES": "Spanien",
-        "FR": "Frankreich",
-        "GB": "Vereinigtes Königreich",
-        "IT": "Italien",
-        "LV": "Lettland",
-        "LT": "Litauen",
-        "PL": "Polen",
-        "SE": "Schweden",
-        "TR": "Türkei",
-        "UA": "Ukraine"
-      }
     }
   },
   "entity": {
     "sensor": {
-      "alder": { "name": "Erle" },
-      "birch": { "name": "Birke" },
-      "grass": { "name": "Gräser" },
-      "mugwort": { "name": "Beifuß" },
-      "olive": { "name": "Olive" },
-      "ragweed": { "name": "Ambrosia" }
+      "alder": {
+        "name": "Erle"
+      },
+      "birch": {
+        "name": "Birke"
+      },
+      "grass": {
+        "name": "Gräser"
+      },
+      "mugwort": {
+        "name": "Beifuß"
+      },
+      "olive": {
+        "name": "Olive"
+      },
+      "ragweed": {
+        "name": "Ambrosia"
+      }
     }
   }
 }

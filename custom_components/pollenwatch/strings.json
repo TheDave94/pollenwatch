@@ -63,33 +63,28 @@
         "olive": "Olive",
         "ragweed": "Ragweed"
       }
-    },
-    "country": {
-      "options": {
-        "AT": "Austria",
-        "CH": "Switzerland",
-        "DE": "Germany",
-        "ES": "Spain",
-        "FR": "France",
-        "GB": "United Kingdom",
-        "IT": "Italy",
-        "LV": "Latvia",
-        "LT": "Lithuania",
-        "PL": "Poland",
-        "SE": "Sweden",
-        "TR": "Türkiye",
-        "UA": "Ukraine"
-      }
     }
   },
   "entity": {
     "sensor": {
-      "alder": { "name": "Alder" },
-      "birch": { "name": "Birch" },
-      "grass": { "name": "Grass" },
-      "mugwort": { "name": "Mugwort" },
-      "olive": { "name": "Olive" },
-      "ragweed": { "name": "Ragweed" }
+      "alder": {
+        "name": "Alder"
+      },
+      "birch": {
+        "name": "Birch"
+      },
+      "grass": {
+        "name": "Grass"
+      },
+      "mugwort": {
+        "name": "Mugwort"
+      },
+      "olive": {
+        "name": "Olive"
+      },
+      "ragweed": {
+        "name": "Ragweed"
+      }
     }
   }
 }
