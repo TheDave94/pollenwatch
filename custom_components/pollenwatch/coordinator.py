@@ -30,6 +30,7 @@ from .analytics import (
     compute_recent_percentile,
     consensus,
     daily_peaks,
+    dwd_collapse,
     recent_percentile_from_series,
 )
 from .const import (
@@ -38,18 +39,22 @@ from .const import (
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
+    CONF_REGION,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
     DEFAULT_ALLERGENS,
     DEFAULT_UPDATE_INTERVAL_MIN,
     DOMAIN,
+    DWD_UPDATE_INTERVAL_MIN,
     OPEN_METEO_FORECAST_DAYS,
     OPEN_METEO_PAST_DAYS,
     PI_UPDATE_INTERVAL_MIN,
+    SOURCE_DWD,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
 )
-from .sources.base import PollenSource, SourceError, SourceResult
+from .sources.base import AllergenSeries, PollenSource, SourceError, SourceResult
+from .sources.dwd import DwdSource
 from .sources.open_meteo import OpenMeteoSource
 from .sources.polleninformation import PolleninformationSource
 
@@ -160,6 +165,13 @@ def build_coordinators(
             PI_UPDATE_INTERVAL_MIN,
         )
 
+    dwd_cfg = sources_cfg.get(SOURCE_DWD, {})
+    if dwd_cfg.get(CONF_ENABLED) and dwd_cfg.get(CONF_REGION) not in (None, ""):
+        dwd = DwdSource(latitude, longitude, dwd_cfg[CONF_REGION], allergens)
+        coordinators[SOURCE_DWD] = PollenWatchSourceCoordinator(
+            hass, entry, dwd, SOURCE_DWD, DWD_UPDATE_INTERVAL_MIN
+        )
+
     return coordinators
 
 
@@ -202,10 +214,17 @@ class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator[AnalyticsData]):
         )
         self._sources = sources
 
-    def _source_level(self, source_key: str, species: str, value: float) -> int:
+    def _source_level(
+        self, source_key: str, species: str, series: AllergenSeries
+    ) -> int | None:
+        """Map a source's current reading to the common 0/1/2 level (or None)."""
+        if source_key == SOURCE_DWD:
+            return dwd_collapse(series.native)  # native 7-point string
+        if series.current is None:
+            return None
         if source_key == SOURCE_OPEN_METEO:
-            return bucket_level(species, value)
-        return collapse_index(value)  # index-scale sources (polleninformation)
+            return bucket_level(species, series.current)
+        return collapse_index(int(series.current))  # index-scale (polleninformation)
 
     async def _async_update_data(self) -> AnalyticsData:
         today = dt_util.now().date().isoformat()
@@ -224,10 +243,9 @@ class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator[AnalyticsData]):
                     percentiles[(source_key, species)] = await self._recorder_percentile(
                         source_key, species, today
                     )
-                if series.current is not None:
-                    levels.setdefault(species, {})[source_key] = self._source_level(
-                        source_key, species, series.current
-                    )
+                level = self._source_level(source_key, species, series)
+                if level is not None:
+                    levels.setdefault(species, {})[source_key] = level
         consensus_map = {sp: consensus(src) for sp, src in levels.items()}
         return AnalyticsData(percentiles=percentiles, consensus=consensus_map)
 

@@ -30,6 +30,7 @@ from .const import (
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
+    CONF_REGION,
     CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
@@ -37,21 +38,25 @@ from .const import (
     DEFAULT_SENSITIVITY,
     DEFAULT_UPDATE_INTERVAL_MIN,
     DOMAIN,
+    DWD_PARTREGIONS,
     MAX_SENSITIVITY,
     MAX_UPDATE_INTERVAL_MIN,
     MIN_SENSITIVITY,
     MIN_UPDATE_INTERVAL_MIN,
+    SOURCE_DWD,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
     new_sources_config,
 )
 from .coordinator import PollenWatchConfigEntry, _entry_option
 from .sources.base import SourceAuthError, SourceError, SourceStatus
+from .sources.dwd import DwdSource
 from .sources.open_meteo import OpenMeteoSource
 from .sources.polleninformation import SUPPORTED_COUNTRIES, PolleninformationSource
 
 CONF_LOCATION = "location"
 CONF_ENABLE_PI = "enable_polleninformation"
+CONF_ENABLE_DWD = "enable_dwd"
 
 _ALLERGEN_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
@@ -111,6 +116,31 @@ async def _async_probe_polleninformation(
         result = await source.async_fetch(session=async_get_clientsession(hass))
     except SourceAuthError:
         return "invalid_api_key"
+    except SourceError:
+        return "cannot_connect"
+    if result.status is SourceStatus.OUT_OF_COVERAGE:
+        return "out_of_coverage"
+    return None
+
+
+_DWD_REGION_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=[
+            selector.SelectOptionDict(value=str(pid), label=name)
+            for pid, name in DWD_PARTREGIONS.items()
+        ],
+        mode=selector.SelectSelectorMode.DROPDOWN,
+    )
+)
+
+
+async def _async_probe_dwd(
+    hass, latitude: float, longitude: float, region_id: int, allergens: list[str]
+) -> str | None:
+    """Return a config-flow error key if DWD can't be used for this location."""
+    source = DwdSource(latitude, longitude, region_id, allergens)
+    try:
+        result = await source.async_fetch(session=async_get_clientsession(hass))
     except SourceError:
         return "cannot_connect"
     if result.status is SourceStatus.OUT_OF_COVERAGE:
@@ -214,15 +244,17 @@ class PollenWatchOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         entry = self.config_entry
-        pi_cfg = _entry_option(entry, CONF_SOURCES, {}).get(
-            SOURCE_POLLENINFORMATION, {}
-        )
+        sources = _entry_option(entry, CONF_SOURCES, {})
+        pi_cfg = sources.get(SOURCE_POLLENINFORMATION, {})
+        dwd_cfg = sources.get(SOURCE_DWD, {})
 
         if user_input is not None:
             allergens = user_input[CONF_ALLERGENS]
             enable_pi = user_input.get(CONF_ENABLE_PI, False)
             country = user_input.get(CONF_COUNTRY)
             api_key = user_input.get(CONF_API_KEY, "")
+            enable_dwd = user_input.get(CONF_ENABLE_DWD, False)
+            region_raw = user_input.get(CONF_REGION)
 
             if not allergens:
                 errors[CONF_ALLERGENS] = "no_allergens"
@@ -238,6 +270,19 @@ class PollenWatchOptionsFlow(OptionsFlow):
                         entry.data[CONF_LONGITUDE],
                         country,
                         api_key,
+                        allergens,
+                    )
+                    if error:
+                        errors["base"] = error
+            if enable_dwd:
+                if region_raw in (None, ""):
+                    errors[CONF_REGION] = "region_required"
+                elif not errors:
+                    error = await _async_probe_dwd(
+                        self.hass,
+                        entry.data[CONF_LATITUDE],
+                        entry.data[CONF_LONGITUDE],
+                        int(region_raw),
                         allergens,
                     )
                     if error:
@@ -260,6 +305,12 @@ class PollenWatchOptionsFlow(OptionsFlow):
                                 CONF_ENABLED: enable_pi,
                                 CONF_API_KEY: api_key if enable_pi else "",
                                 CONF_COUNTRY: country if enable_pi else "",
+                            },
+                            SOURCE_DWD: {
+                                CONF_ENABLED: enable_dwd,
+                                CONF_REGION: int(region_raw)
+                                if (enable_dwd and region_raw not in (None, ""))
+                                else "",
                             },
                         },
                     }
@@ -289,6 +340,17 @@ class PollenWatchOptionsFlow(OptionsFlow):
                 CONF_API_KEY,
                 description={"suggested_value": pi_cfg.get(CONF_API_KEY) or None},
             ): _API_KEY_SELECTOR,
+            vol.Required(
+                CONF_ENABLE_DWD, default=dwd_cfg.get(CONF_ENABLED, False)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_REGION,
+                description={
+                    "suggested_value": str(dwd_cfg[CONF_REGION])
+                    if dwd_cfg.get(CONF_REGION) not in (None, "")
+                    else None
+                },
+            ): _DWD_REGION_SELECTOR,
         }
         # Personal sensitivity multipliers (one per species).
         for species in ALLERGENS:

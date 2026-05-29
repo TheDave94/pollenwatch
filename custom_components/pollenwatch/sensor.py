@@ -204,7 +204,7 @@ class PollenWatchSensor(
             return None
         shift = result.coordinate_shift_km
         today = (result.current_time or "")[:10]
-        return {
+        attrs: dict[str, Any] = {
             ATTR_FORECAST: _forecast_attr(
                 result.times, series.values, today, FORECAST_DAYS
             ),
@@ -215,6 +215,10 @@ class PollenWatchSensor(
             ATTR_GRID_SHIFT_KM: round(shift, 2) if shift is not None else None,
             ATTR_LAST_UPDATED: result.generated_at,
         }
+        if series.native is not None:
+            # Source's native categorical value (e.g. DWD "2-3").
+            attrs["native_value"] = series.native
+        return attrs
 
 
 class PersonalScoreSensor(

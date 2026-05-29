@@ -40,13 +40,17 @@
           "sensitivity_grass": "Gräser-Empfindlichkeit (×)",
           "sensitivity_mugwort": "Beifuß-Empfindlichkeit (×)",
           "sensitivity_olive": "Olive-Empfindlichkeit (×)",
-          "sensitivity_ragweed": "Ambrosia-Empfindlichkeit (×)"
+          "sensitivity_ragweed": "Ambrosia-Empfindlichkeit (×)",
+          "enable_dwd": "DWD Pollenflug aktivieren (Deutschland, dritte Quelle)",
+          "region": "DWD-Region"
         },
         "data_description": {
           "update_interval": "Wie oft Open-Meteo abgefragt wird. Mindestens 60 Minuten, um die kostenlose öffentliche API zu schonen.",
           "enable_polleninformation": "Fügt eine zweite Quelle hinzu. Benötigt einen kostenlosen API-Schlüssel von polleninformation.at.",
           "country": "Das Land, dessen Pollennetz deinen Standort abdeckt.",
-          "api_key": "Wird in Home Assistant verschlüsselt gespeichert; nie im Klartext auf die Festplatte geschrieben."
+          "api_key": "Wird in Home Assistant verschlüsselt gespeichert; nie im Klartext auf die Festplatte geschrieben.",
+          "enable_dwd": "Fügt die Vorhersage des Deutschen Wetterdienstes hinzu. Nur Deutschland; kein API-Schlüssel nötig.",
+          "region": "Deine DWD-Vorhersageregion innerhalb Deutschlands."
         }
       }
     },
@@ -56,7 +60,8 @@
       "api_key_required": "Gib deinen polleninformation API-Schlüssel ein.",
       "invalid_api_key": "polleninformation hat den API-Schlüssel abgelehnt. Bitte prüfen und erneut versuchen.",
       "out_of_coverage": "polleninformation hat keine Daten für diesen Standort im gewählten Land.",
-      "cannot_connect": "polleninformation konnte nicht erreicht werden. Prüfe deine Verbindung und versuche es erneut."
+      "cannot_connect": "polleninformation konnte nicht erreicht werden. Prüfe deine Verbindung und versuche es erneut.",
+      "region_required": "Wähle eine DWD-Region, um DWD zu aktivieren."
     }
   },
   "selector": {

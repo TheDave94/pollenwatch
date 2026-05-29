@@ -73,6 +73,10 @@ class AllergenSeries:
     unit: str | None
     current: float | None
     values: list[float | None] = field(default_factory=list)
+    # Source's native categorical value, when it isn't a plain number (e.g. DWD's
+    # "2-3" 7-point string). Carried so analytics can map by the native scale
+    # while the raw sensor still shows a numeric value. None for numeric sources.
+    native: str | None = None
 
 
 @dataclass(slots=True)

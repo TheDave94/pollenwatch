@@ -40,13 +40,17 @@
           "sensitivity_grass": "Grass sensitivity (×)",
           "sensitivity_mugwort": "Mugwort sensitivity (×)",
           "sensitivity_olive": "Olive sensitivity (×)",
-          "sensitivity_ragweed": "Ragweed sensitivity (×)"
+          "sensitivity_ragweed": "Ragweed sensitivity (×)",
+          "enable_dwd": "Enable DWD Pollenflug (Germany, third source)",
+          "region": "DWD region"
         },
         "data_description": {
           "update_interval": "How often to poll Open-Meteo. Minimum 60 minutes to be a good citizen on a free public API.",
           "enable_polleninformation": "Adds a second source. Requires a free API key from polleninformation.at.",
           "country": "The country whose pollen network covers your location.",
-          "api_key": "Stored encrypted in Home Assistant; never written to disk in plain text."
+          "api_key": "Stored encrypted in Home Assistant; never written to disk in plain text.",
+          "enable_dwd": "Adds the Deutscher Wetterdienst forecast. Germany only; no API key needed.",
+          "region": "Your DWD forecast region within Germany."
         }
       }
     },
@@ -56,7 +60,8 @@
       "api_key_required": "Enter your polleninformation API key.",
       "invalid_api_key": "polleninformation rejected the API key. Check it and try again.",
       "out_of_coverage": "polleninformation has no data for this location in the selected country.",
-      "cannot_connect": "Could not reach polleninformation. Check your connection and try again."
+      "cannot_connect": "Could not reach polleninformation. Check your connection and try again.",
+      "region_required": "Select a DWD region to enable DWD."
     }
   },
   "selector": {

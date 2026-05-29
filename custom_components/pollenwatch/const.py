@@ -36,18 +36,22 @@ SOURCE_OPEN_METEO_NAME: Final = "Open-Meteo (CAMS)"
 SOURCE_DEVICE_NAMES: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "PollenWatch Open-Meteo",
     "polleninformation": "PollenWatch Polleninformation",
+    "dwd": "PollenWatch DWD",
 }
 SOURCE_DEVICE_MODELS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "CAMS via Open-Meteo",
     "polleninformation": "polleninformation.at",
+    "dwd": "DWD Pollenflug-Gefahrenindex",
 }
 SOURCE_CONFIG_URLS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "https://open-meteo.com/",
     "polleninformation": "https://www.polleninformation.at/",
+    "dwd": "https://www.dwd.de/pollenflug",
 }
 SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: ATTRIBUTION_CAMS,
     "polleninformation": "© Polleninformation Austria",
+    "dwd": "© Deutscher Wetterdienst (DWD)",
 }
 
 # Config-entry / options keys. Location uses homeassistant.const
@@ -68,14 +72,52 @@ CONF_SOURCES: Final = "sources"
 CONF_ENABLED: Final = "enabled"
 CONF_API_KEY: Final = "api_key"  # local copy to keep const free of HA imports
 CONF_COUNTRY: Final = "country"
+CONF_REGION: Final = "region"  # DWD partregion_id
 
 # Second source (added in milestone 3a; disabled until a key is supplied).
 SOURCE_POLLENINFORMATION: Final = "polleninformation"
 SOURCE_POLLENINFORMATION_NAME: Final = "Polleninformation"
 
+# Third source (added in the DWD milestone; Germany only, keyless, off by default).
+SOURCE_DWD: Final = "dwd"
+
 # polleninformation publishes a daily index (cadence ~8–24 h), so polling it
 # hourly would waste a free public API. Use a fixed, slower interval.
 PI_UPDATE_INTERVAL_MIN: Final = 6 * 60
+# DWD updates once daily (~11:00) — poll slowly.
+DWD_UPDATE_INTERVAL_MIN: Final = 12 * 60
+
+# DWD partregion_id -> display name (captured from the s31fg.json feed; factual,
+# stable — bundled so the config flow needs no network call). id -1 is the
+# Brandenburg+Berlin region, which has no sub-region (not a no-data marker).
+DWD_PARTREGIONS: Final[dict[int, str]] = {
+    -1: "Brandenburg und Berlin",
+    11: "Schleswig-Holstein und Hamburg – Inseln und Marschen",
+    12: "Schleswig-Holstein und Hamburg – Geest",
+    31: "Niedersachsen und Bremen – Westl. Niedersachsen/Bremen",
+    32: "Niedersachsen und Bremen – Östl. Niedersachsen",
+    41: "Nordrhein-Westfalen – Rhein.-Westfäl. Tiefland",
+    42: "Nordrhein-Westfalen – Ostwestfalen",
+    43: "Nordrhein-Westfalen – Mittelgebirge NRW",
+    61: "Sachsen-Anhalt – Tiefland",
+    62: "Sachsen-Anhalt – Harz",
+    71: "Thüringen – Tiefland",
+    72: "Thüringen – Mittelgebirge",
+    81: "Sachsen – Tiefland",
+    82: "Sachsen – Mittelgebirge",
+    91: "Hessen – Nordhessen und Mittelgebirge",
+    92: "Hessen – Rhein-Main",
+    101: "Rheinland-Pfalz und Saarland – Rhein, Pfalz, Nahe und Mosel",
+    102: "Rheinland-Pfalz und Saarland – Mittelgebirge",
+    103: "Rheinland-Pfalz und Saarland – Saarland",
+    111: "Baden-Württemberg – Oberrhein und unteres Neckartal",
+    112: "Baden-Württemberg – Hohenlohe/mittlerer Neckar/Oberschwaben",
+    113: "Baden-Württemberg – Mittelgebirge",
+    121: "Bayern – Allgäu/Oberbayern/Bayerischer Wald",
+    122: "Bayern – Donauniederungen",
+    123: "Bayern – Bayern nördlich der Donau",
+    124: "Bayern – Mainfranken",
+}
 
 
 def new_sources_config() -> dict[str, dict[str, object]]:
@@ -91,6 +133,7 @@ def new_sources_config() -> dict[str, dict[str, object]]:
             CONF_API_KEY: "",
             CONF_COUNTRY: "",
         },
+        SOURCE_DWD: {CONF_ENABLED: False, CONF_REGION: ""},
     }
 
 # Defaults and guardrails.

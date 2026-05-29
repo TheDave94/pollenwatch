@@ -26,14 +26,17 @@ from custom_components.pollenwatch.const import (
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
+    CONF_REGION,
     CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
     DOMAIN,
+    SOURCE_DWD,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
     new_sources_config,
 )
+from custom_components.pollenwatch.sources.dwd import DwdSource
 from custom_components.pollenwatch.sources.open_meteo import OpenMeteoSource
 from custom_components.pollenwatch.sources.polleninformation import (
     PolleninformationSource,
@@ -43,6 +46,7 @@ _PI_FETCH = (
     "custom_components.pollenwatch.sources.polleninformation."
     "PolleninformationSource.async_fetch"
 )
+_DWD_FETCH = "custom_components.pollenwatch.sources.dwd.DwdSource.async_fetch"
 
 _SESSION = "custom_components.pollenwatch.coordinator.async_get_clientsession"
 _FETCH = "custom_components.pollenwatch.sources.open_meteo.OpenMeteoSource.async_fetch"
@@ -365,6 +369,105 @@ async def test_consensus_and_divergence(hass: HomeAssistant) -> None:
     assert birch.state == "mixed"
     assert birch.attributes["level"] is None
     assert hass.states.get("binary_sensor.pollenwatch_analytics_birch_divergence").state == "on"
+
+
+def _dwd_levels_result():
+    payload = {
+        "legend": {},
+        "content": [{
+            "region_id": 110, "region_name": "BW", "partregion_id": 111,
+            "partregion_name": "Oberrhein",
+            "Pollen": {
+                "Graeser": {"today": "2-3", "tomorrow": "2", "dayafter_to": "1"},
+                "Birke": {"today": "0", "tomorrow": "0", "dayafter_to": "0"},
+            },
+        }],
+    }
+    return DwdSource(48.0, 9.0, 111, ["grass", "birch"]).parse(payload)
+
+
+def _three_source_entry() -> MockConfigEntry:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="48.0000_9.0000",
+        data={CONF_LATITUDE: 48.0, CONF_LONGITUDE: 9.0, CONF_ALLERGENS: ["grass", "birch"]},
+        options={
+            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SOURCES: {
+                SOURCE_OPEN_METEO: {CONF_ENABLED: True},
+                SOURCE_POLLENINFORMATION: {
+                    CONF_ENABLED: True, CONF_API_KEY: "k", CONF_COUNTRY: "DE",
+                },
+                SOURCE_DWD: {CONF_ENABLED: True, CONF_REGION: 111},
+            },
+        },
+    )
+
+
+async def test_three_sources_consensus(hass: HomeAssistant) -> None:
+    entry = _three_source_entry()  # German location -> DWD covered
+    entry.add_to_hass(hass)
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_om_levels_result())),  # grass lvl 2
+        patch(_PI_FETCH, new=AsyncMock(return_value=_pi_levels_result())),  # grass lvl 2
+        patch(_DWD_FETCH, new=AsyncMock(return_value=_dwd_levels_result())),  # 2-3 -> lvl 2
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    grass = hass.states.get("sensor.pollenwatch_analytics_grass_consensus")
+    assert grass is not None
+    assert grass.state == "high"
+    # All three sources contribute to the consensus.
+    assert grass.attributes["source_levels"] == {
+        "open_meteo": 2, "polleninformation": 2, "dwd": 2,
+    }
+    # DWD raw sensor exists under its own device.
+    assert hass.states.get("sensor.pollenwatch_dwd_grass") is not None
+
+
+async def test_dwd_out_of_coverage_leaves_two_source_consensus_unchanged(
+    hass: HomeAssistant,
+) -> None:
+    # Graz + DWD enabled: DWD is out of coverage (Germany bbox) and must
+    # contribute NOTHING — the existing 2-source consensus is unchanged.
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="47.0700_15.4400",
+        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44, CONF_ALLERGENS: ["grass", "birch"]},
+        options={
+            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SOURCES: {
+                SOURCE_OPEN_METEO: {CONF_ENABLED: True},
+                SOURCE_POLLENINFORMATION: {
+                    CONF_ENABLED: True, CONF_API_KEY: "k", CONF_COUNTRY: "AT",
+                },
+                SOURCE_DWD: {CONF_ENABLED: True, CONF_REGION: 111},
+            },
+        },
+    )
+    entry.add_to_hass(hass)
+    # DWD async_fetch is NOT mocked: Graz fails the Germany bbox -> out_of_coverage
+    # offline, so the DWD coordinator gets no data.
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),  # grass 20.8 -> lvl 1
+        patch(_PI_FETCH, new=AsyncMock(return_value=_pi_result())),  # grass idx 3 -> lvl 2
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    grass = hass.states.get("sensor.pollenwatch_analytics_grass_consensus")
+    assert grass is not None
+    # EXACTLY the two sources — no "dwd" key. Byte-for-byte the 2-source result.
+    assert grass.attributes["source_levels"] == {"open_meteo": 1, "polleninformation": 2}
+    assert grass.state == "high"
+    # No DWD sensors created.
+    assert hass.states.get("sensor.pollenwatch_dwd_grass") is None
+    assert hass.states.get("sensor.pollenwatch_dwd_birch") is None
 
 
 async def test_no_consensus_with_single_source(hass: HomeAssistant) -> None:
