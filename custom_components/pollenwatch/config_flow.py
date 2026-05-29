@@ -26,12 +26,14 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import (
     ALLERGEN_NAMES,
     CONF_ALLERGENS,
+    CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
     DEFAULT_ALLERGENS,
     DEFAULT_UPDATE_INTERVAL_MIN,
     DOMAIN,
     MAX_UPDATE_INTERVAL_MIN,
     MIN_UPDATE_INTERVAL_MIN,
+    new_sources_config,
 )
 from .coordinator import PollenWatchConfigEntry, _entry_option
 from .sources.base import SourceError, SourceStatus
@@ -81,7 +83,7 @@ async def _async_probe_coverage(
 class PollenWatchConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the initial setup of a PollenWatch config entry."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -112,6 +114,7 @@ class PollenWatchConfigFlow(ConfigFlow, domain=DOMAIN):
                             CONF_LONGITUDE: longitude,
                             CONF_ALLERGENS: allergens,
                         },
+                        options={CONF_SOURCES: new_sources_config()},
                     )
 
         suggested_location = {

@@ -18,7 +18,35 @@ if TYPE_CHECKING:
 
     from .coordinator import PollenWatchConfigEntry
 
-__all__ = ["DOMAIN", "async_setup_entry", "async_unload_entry"]
+__all__ = [
+    "DOMAIN",
+    "async_migrate_entry",
+    "async_setup_entry",
+    "async_unload_entry",
+]
+
+
+async def async_migrate_entry(
+    hass: HomeAssistant, entry: PollenWatchConfigEntry
+) -> bool:
+    """Migrate a config entry to the current version.
+
+    v1 → v2 (multi-source): additively add the per-source enablement config to
+    options. Purely additive — no existing key is moved or dropped — so the live
+    single-source (Open-Meteo) setup is preserved. Idempotent.
+    """
+    from .const import CONF_SOURCES, new_sources_config
+
+    if entry.version > 2:
+        # Downgrade (e.g. user rolled back) — refuse rather than corrupt.
+        return False
+
+    if entry.version == 1:
+        options = {**entry.options}
+        options.setdefault(CONF_SOURCES, new_sources_config())
+        hass.config_entries.async_update_entry(entry, options=options, version=2)
+
+    return True
 
 
 async def async_setup_entry(

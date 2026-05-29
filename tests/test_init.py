@@ -18,7 +18,18 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.pollenwatch.const import ATTRIBUTION_CAMS, CONF_ALLERGENS, DOMAIN
+from custom_components.pollenwatch import async_migrate_entry
+from custom_components.pollenwatch.const import (
+    ATTRIBUTION_CAMS,
+    CONF_ALLERGENS,
+    CONF_ENABLED,
+    CONF_SOURCES,
+    CONF_UPDATE_INTERVAL,
+    DOMAIN,
+    SOURCE_OPEN_METEO,
+    SOURCE_POLLENINFORMATION,
+    new_sources_config,
+)
 from custom_components.pollenwatch.sources.open_meteo import OpenMeteoSource
 
 _SESSION = "custom_components.pollenwatch.coordinator.async_get_clientsession"
@@ -59,6 +70,7 @@ def _result():
 def _entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
+        version=2,
         unique_id="47.0700_15.4400",
         title="PollenWatch (47.070, 15.440)",
         data={
@@ -66,6 +78,7 @@ def _entry() -> MockConfigEntry:
             CONF_LONGITUDE: 15.44,
             CONF_ALLERGENS: ["grass", "birch"],
         },
+        options={CONF_SOURCES: new_sources_config()},
     )
 
 
@@ -128,6 +141,56 @@ async def test_deselecting_allergen_removes_its_entity(hass: HomeAssistant) -> N
         assert registry.async_get_entity_id("sensor", DOMAIN, grass_uid) is not None
         assert hass.states.get("sensor.pollenwatch_open_meteo_birch") is None
         assert hass.states.get("sensor.pollenwatch_open_meteo_grass") is not None
+
+
+def _v1_entry() -> MockConfigEntry:
+    """Reconstruct the live single-source v1 entry shape (the API does not
+    expose entry.data, so this mirrors what milestone-2 setup + options wrote)."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        unique_id="47.0700_15.4400",
+        title="PollenWatch (47.070, 15.440)",
+        data={
+            CONF_LATITUDE: 47.07,
+            CONF_LONGITUDE: 15.44,
+            CONF_ALLERGENS: ["grass", "birch"],
+        },
+        options={CONF_ALLERGENS: ["grass", "birch"], CONF_UPDATE_INTERVAL: 60},
+    )
+
+
+async def test_migrate_v1_entry_to_v2(hass: HomeAssistant) -> None:
+    entry = _v1_entry()
+    entry.add_to_hass(hass)
+
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # Migrated to v2 with the additive sources config.
+    assert entry.version == 2
+    sources = entry.options[CONF_SOURCES]
+    assert sources[SOURCE_OPEN_METEO][CONF_ENABLED] is True
+    assert sources[SOURCE_POLLENINFORMATION][CONF_ENABLED] is False
+    # Existing keys preserved (purely additive migration).
+    assert entry.data[CONF_ALLERGENS] == ["grass", "birch"]
+    assert entry.options[CONF_UPDATE_INTERVAL] == 60
+    # Open-Meteo keeps working through the migration.
+    assert entry.state is ConfigEntryState.LOADED
+    assert hass.states.get("sensor.pollenwatch_open_meteo_grass") is not None
+
+
+async def test_migrate_is_idempotent_on_v2(hass: HomeAssistant) -> None:
+    entry = _entry()  # already v2 (default MockConfigEntry version)
+    entry.add_to_hass(hass)
+    before = dict(entry.options)
+    assert await async_migrate_entry(hass, entry) is True
+    assert entry.version == 2
+    assert dict(entry.options) == before
 
 
 async def test_unload_entry(hass: HomeAssistant) -> None:

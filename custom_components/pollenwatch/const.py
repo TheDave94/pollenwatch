@@ -48,6 +48,27 @@ SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
 CONF_ALLERGENS: Final = "allergens"
 CONF_UPDATE_INTERVAL: Final = "update_interval"  # minutes
 
+# Multi-source enablement (config-entry version 2). Stored in options under
+# CONF_SOURCES as {source_key: {enabled: bool, api_key?: str}}.
+CONF_SOURCES: Final = "sources"
+CONF_ENABLED: Final = "enabled"
+CONF_API_KEY: Final = "api_key"  # local copy to keep const free of HA imports
+
+# Second source (added in milestone 3a; disabled until a key is supplied).
+SOURCE_POLLENINFORMATION: Final = "polleninformation"
+
+
+def new_sources_config() -> dict[str, dict[str, object]]:
+    """Default per-source enablement for a new or migrated entry.
+
+    Open-Meteo is always on (keyless, primary); polleninformation is off until
+    the user enables it and supplies an API key.
+    """
+    return {
+        SOURCE_OPEN_METEO: {CONF_ENABLED: True},
+        SOURCE_POLLENINFORMATION: {CONF_ENABLED: False, CONF_API_KEY: ""},
+    }
+
 # Defaults and guardrails.
 DEFAULT_ALLERGENS: Final[list[str]] = list(ALLERGENS)
 DEFAULT_UPDATE_INTERVAL_MIN: Final = 60
