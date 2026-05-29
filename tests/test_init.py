@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, patch
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pollenwatch.const import ATTRIBUTION_CAMS, CONF_ALLERGENS, DOMAIN
@@ -98,6 +99,35 @@ async def test_setup_creates_sensors_with_expected_naming(
         assert state.attributes["requested_latitude"] == 47.07
 
         assert hass.states.get("sensor.pollenwatch_open_meteo_birch") is not None
+
+
+async def test_deselecting_allergen_removes_its_entity(hass: HomeAssistant) -> None:
+    entry = _entry()  # grass + birch
+    entry.add_to_hass(hass)
+
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        registry = er.async_get(hass)
+        birch_uid = f"{entry.entry_id}_open_meteo_birch"
+        grass_uid = f"{entry.entry_id}_open_meteo_grass"
+        assert registry.async_get_entity_id("sensor", DOMAIN, birch_uid) is not None
+
+        # Deselect birch via options; the entry reloads on the update listener.
+        hass.config_entries.async_update_entry(
+            entry, options={CONF_ALLERGENS: ["grass"]}
+        )
+        await hass.async_block_till_done()
+
+        # Birch is removed from the registry (not left as unavailable); grass stays.
+        assert registry.async_get_entity_id("sensor", DOMAIN, birch_uid) is None
+        assert registry.async_get_entity_id("sensor", DOMAIN, grass_uid) is not None
+        assert hass.states.get("sensor.pollenwatch_open_meteo_birch") is None
+        assert hass.states.get("sensor.pollenwatch_open_meteo_grass") is not None
 
 
 async def test_unload_entry(hass: HomeAssistant) -> None:

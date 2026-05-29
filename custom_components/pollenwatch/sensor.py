@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -41,12 +42,35 @@ async def async_setup_entry(
     entry: PollenWatchConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up PollenWatch sensors for a config entry."""
+    """Set up PollenWatch sensors for a config entry.
+
+    Runs on every reload (including after an options change), so it also prunes
+    registry entries for allergens that are no longer configured.
+    """
     coordinator = entry.runtime_data
+    configured = list(coordinator.source.allergens)
+    _async_remove_deconfigured_entities(hass, entry, set(configured))
     async_add_entities(
-        PollenWatchSensor(coordinator, allergen)
-        for allergen in coordinator.data.allergens
+        PollenWatchSensor(coordinator, allergen) for allergen in configured
     )
+
+
+@callback
+def _async_remove_deconfigured_entities(
+    hass: HomeAssistant, entry: PollenWatchConfigEntry, configured: set[str]
+) -> None:
+    """Remove sensor entities for allergens no longer in the configured set.
+
+    Without this, deselecting an allergen in the options flow would leave the
+    sensor lingering as ``unavailable`` in the registry instead of disappearing.
+    """
+    registry = er.async_get(hass)
+    prefix = f"{entry.entry_id}_{SOURCE_OPEN_METEO}_"
+    for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if reg_entry.unique_id.startswith(prefix):
+            allergen = reg_entry.unique_id[len(prefix):]
+            if allergen not in configured:
+                registry.async_remove(reg_entry.entity_id)
 
 
 def _daily_peak_forecast(
