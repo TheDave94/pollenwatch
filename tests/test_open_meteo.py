@@ -6,6 +6,7 @@ offline and deterministically.
 
 from __future__ import annotations
 
+import asyncio
 import urllib.error
 
 import pytest
@@ -150,3 +151,74 @@ def test_past_days_clamped_to_provider_maximum():
     assert source.past_days == 92
     assert "past_days=92" in source.build_url()
     assert "domains=cams_europe" in source.build_url()
+
+
+# -- async fetch path --------------------------------------------------------
+
+
+def _async_transport_returning(status: int, payload: object):
+    async def transport(url: str, timeout: float):
+        return status, payload
+
+    return transport
+
+
+def test_async_success_parses_series():
+    source = OpenMeteoSource(
+        47.0707, 15.4395, ["grass", "birch"],
+        async_transport=_async_transport_returning(200, _european_payload()),
+    )
+    result = asyncio.run(source.async_fetch())
+
+    assert result.ok
+    assert result.status is SourceStatus.OK
+    assert result.allergens["grass"].current == 20.8
+    assert result.allergens["grass"].values == [18.0, 19.5, 20.8, None]
+    assert result.forecast_split == 2
+
+
+def test_async_out_of_coverage_returns_status_not_raise():
+    source = OpenMeteoSource(
+        40.71, -74.0, ["grass"],
+        async_transport=_async_transport_returning(
+            400, {"error": True, "reason": "No data is available for this location"}
+        ),
+    )
+    result = asyncio.run(source.async_fetch())
+
+    assert result.status is SourceStatus.OUT_OF_COVERAGE
+    assert result.allergens == {}
+
+
+def test_async_retries_once_then_succeeds():
+    calls = {"n": 0}
+
+    async def flaky(url: str, timeout: float):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise TimeoutError("temporary")
+        return 200, _european_payload()
+
+    source = OpenMeteoSource(
+        47.07, 15.44, ["grass"], async_transport=flaky, retry_delay=0
+    )
+    result = asyncio.run(source.async_fetch())
+
+    assert calls["n"] == 2
+    assert result.ok
+
+
+def test_async_exhausts_retries_and_raises_unavailable():
+    calls = {"n": 0}
+
+    async def always_fails(url: str, timeout: float):
+        calls["n"] += 1
+        raise ConnectionError("down")  # OSError subclass
+
+    source = OpenMeteoSource(
+        47.07, 15.44, ["grass"], async_transport=always_fails, retry_delay=0
+    )
+    with pytest.raises(SourceUnavailable):
+        asyncio.run(source.async_fetch())
+
+    assert calls["n"] == 2

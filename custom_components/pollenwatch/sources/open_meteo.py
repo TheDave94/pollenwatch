@@ -24,14 +24,18 @@ Design notes
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import aiohttp
 
 from .base import (
     ALLERGENS,
@@ -68,6 +72,10 @@ _COVERAGE_REASON = "no data is available"
 #: body (e.g. 400) should be returned as ``(code, body)``, not raised.
 Transport = Callable[[str, float], "tuple[int, Any]"]
 
+#: Async counterpart of :data:`Transport`, awaited by
+#: :meth:`OpenMeteoSource.async_fetch`.
+AsyncTransport = Callable[[str, float], Awaitable["tuple[int, Any]"]]
+
 
 def _http_get_json(url: str, timeout: float) -> tuple[int, Any]:
     """Default synchronous transport built on the standard library."""
@@ -88,6 +96,21 @@ def _http_get_json(url: str, timeout: float) -> tuple[int, Any]:
     # propagate to fetch() for retry handling.
 
 
+def _async_retryable_exceptions() -> tuple[type[BaseException], ...]:
+    """Transport exceptions the async fetch should retry.
+
+    Includes ``aiohttp.ClientError`` when aiohttp is importable; always covers
+    timeouts and OS-level errors (which also covers injected test transports
+    raising e.g. ``ConnectionError``).
+    """
+    retryable: tuple[type[BaseException], ...] = (asyncio.TimeoutError, OSError)
+    try:
+        import aiohttp
+    except ImportError:
+        return retryable
+    return (*retryable, aiohttp.ClientError)
+
+
 class OpenMeteoSource:
     """Fetches and normalises CAMS pollen data from Open-Meteo."""
 
@@ -105,6 +128,7 @@ class OpenMeteoSource:
         timeout: float = 30.0,
         retry_delay: float = 1.0,
         transport: Transport | None = None,
+        async_transport: AsyncTransport | None = None,
     ) -> None:
         self.latitude = float(latitude)
         self.longitude = float(longitude)
@@ -115,6 +139,7 @@ class OpenMeteoSource:
         self.timeout = timeout
         self.retry_delay = retry_delay
         self._transport: Transport = transport or _http_get_json
+        self._async_transport: AsyncTransport | None = async_transport
 
     @staticmethod
     def _validate_allergens(allergens: Iterable[str] | None) -> list[str]:
@@ -171,6 +196,73 @@ class OpenMeteoSource:
                     f"Open-Meteo request failed after {attempts} attempts: {err}"
                 ) from err
         return self._handle_response(status, payload)
+
+    async def async_fetch(
+        self, session: aiohttp.ClientSession | None = None
+    ) -> SourceResult:
+        """Async counterpart of :meth:`fetch`, for use inside Home Assistant.
+
+        Pass HA's shared ``aiohttp`` session (``async_get_clientsession``). If
+        omitted, a temporary session is created and closed. An injected
+        ``async_transport`` (see ``__init__``) takes precedence and is used as-is
+        — handy for tests without ``aiohttp``. Shares :meth:`_handle_response`
+        and :meth:`parse` with the sync path, so classification and parsing are
+        identical.
+        """
+        url = self.build_url()
+        if self._async_transport is not None:
+            return await self._async_fetch_with(self._async_transport, url)
+
+        import aiohttp  # local import keeps the module importable without aiohttp
+
+        owns_session = session is None
+        if owns_session:
+            session = aiohttp.ClientSession()
+        try:
+            return await self._async_fetch_with(
+                self._make_aiohttp_transport(aiohttp, session), url
+            )
+        finally:
+            if owns_session:
+                await session.close()
+
+    async def _async_fetch_with(
+        self, transport: AsyncTransport, url: str
+    ) -> SourceResult:
+        retryable = _async_retryable_exceptions()
+        attempts = 2  # initial try + one retry
+        for attempt in range(attempts):
+            try:
+                status, payload = await transport(url, self.timeout)
+                break
+            except retryable as err:
+                if attempt + 1 < attempts:
+                    await asyncio.sleep(self.retry_delay)
+                    continue
+                raise SourceUnavailable(
+                    f"Open-Meteo request failed after {attempts} attempts: {err}"
+                ) from err
+        return self._handle_response(status, payload)
+
+    def _make_aiohttp_transport(
+        self, aiohttp_mod: Any, session: aiohttp.ClientSession
+    ) -> AsyncTransport:
+        async def transport(url: str, timeout: float) -> tuple[int, Any]:
+            client_timeout = aiohttp_mod.ClientTimeout(total=timeout)
+            async with session.get(
+                url,
+                headers={"User-Agent": "PollenWatch/0.1.0"},
+                timeout=client_timeout,
+            ) as resp:
+                # Read the body regardless of status: Open-Meteo returns a JSON
+                # error body alongside 4xx codes (e.g. out-of-coverage).
+                text = await resp.text()
+                try:
+                    return resp.status, json.loads(text)
+                except json.JSONDecodeError:
+                    return resp.status, {"error": True, "reason": text[:200]}
+
+        return transport
 
     def _handle_response(self, status: int, payload: Any) -> SourceResult:
         if isinstance(payload, dict) and payload.get("error"):
