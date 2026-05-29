@@ -100,6 +100,10 @@ class SourceResult:
     allergens: dict[str, AllergenSeries] = field(default_factory=dict)
     generated_at: str | None = None
     message: str | None = None
+    # Station-based sources (MeteoSwiss, ePIN) auto-pick the nearest measuring
+    # station and report it here for display. ``snapped_lat/lon`` carry the
+    # station's coordinates so ``coordinate_shift_km`` is the distance to it.
+    station: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -145,10 +149,24 @@ class PollenSource(Protocol):
 
     Lets the per-source coordinator stay source-agnostic. ``session`` is typed
     loosely (``Any``) so this module need not import aiohttp.
+
+    Two capability flags drive the analytics layer (see the analytics
+    coordinator). Keeping them on the source means a future source that may not
+    store data (e.g. one whose terms forbid caching) is a clean drop-in:
+
+    - ``supports_history`` — may a recent_percentile baseline be derived/persisted
+      for this source at all? ``False`` means no recent_percentile sensor and no
+      recorder use (for a source whose licence prohibits storing results).
+    - ``provides_history_series`` — does :meth:`async_fetch` return its own
+      multi-day history series? ``True`` → self-baseline the percentile from that
+      series (Open-Meteo backfill, MeteoSwiss recent CSV). ``False`` (but
+      ``supports_history``) → baseline on Home Assistant recorder history.
     """
 
     name: str
     allergens: list[str]
+    supports_history: bool
+    provides_history_series: bool
 
     async def async_fetch(self, session: Any = None) -> SourceResult: ...
 

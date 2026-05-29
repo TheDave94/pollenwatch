@@ -87,6 +87,8 @@ class DwdSource:
     """Fetches and normalises one DWD region's pollen forecast."""
 
     name = SOURCE_NAME
+    supports_history = True
+    provides_history_series = False  # 3-day forecast only -> recorder-baselined
 
     def __init__(
         self,

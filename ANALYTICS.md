@@ -102,6 +102,15 @@ gets its own); **not** cross-source.
   history of its own raw sensor. Until enough days accumulate (`MIN_PERCENTILE_DAYS`,
   ~14) it emits an honest **"insufficient history"** state, not a misleading
   number; it improves passively as data accrues.
+- **MeteoSwiss:** self-baselines **day one** from its recent hourly CSV (months of
+  history, like Open-Meteo — no recorder). **ePIN** exposes only ~7 days, far short
+  of the window, so it baselines on **HA recorder** like polleninformation.
+- **Reference day for lagged observation feeds:** a self-baselining source ranks the
+  **latest available reading's day**, not the calendar today. An observation feed
+  (e.g. MeteoSwiss) can publish with ~1 day of lag, so calendar-today may not exist
+  in the data yet — ranking it would always be `no_data`. This is intentional, not a
+  bug: you cannot percentile-rank a day that has not been measured. (Open-Meteo's
+  `current` hour is today, so it is unaffected.)
 - **Statuses** (state is a number only for `ok`; otherwise unknown + a
   `history_status` attribute): `ok`, `insufficient_history`, `no_data`, and
   **`off_season`**. `off_season` fires when the **whole trailing window is zero**

@@ -115,6 +115,8 @@ class OpenMeteoSource:
     """Fetches and normalises CAMS pollen data from Open-Meteo."""
 
     name = SOURCE_NAME
+    supports_history = True
+    provides_history_series = True  # 92-day backfill -> self-baselined percentile
 
     def __init__(
         self,

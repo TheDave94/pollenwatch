@@ -37,21 +37,31 @@ SOURCE_DEVICE_NAMES: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "PollenWatch Open-Meteo",
     "polleninformation": "PollenWatch Polleninformation",
     "dwd": "PollenWatch DWD",
+    "meteoswiss": "PollenWatch MeteoSwiss",
+    "epin": "PollenWatch ePIN",
 }
 SOURCE_DEVICE_MODELS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "CAMS via Open-Meteo",
     "polleninformation": "polleninformation.at",
     "dwd": "DWD Pollenflug-Gefahrenindex",
+    "meteoswiss": "MeteoSwiss automatic pollen network",
+    "epin": "ePIN Bayern (automatic stations)",
 }
 SOURCE_CONFIG_URLS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "https://open-meteo.com/",
     "polleninformation": "https://www.polleninformation.at/",
     "dwd": "https://www.dwd.de/pollenflug",
+    "meteoswiss": "https://www.meteoswiss.admin.ch/services-and-publications/service/open-data.html",
+    "epin": "https://www.pollenflug.bayern.de/",
 }
 SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: ATTRIBUTION_CAMS,
     "polleninformation": "© Polleninformation Austria",
     "dwd": "© Deutscher Wetterdienst (DWD)",
+    # MeteoSwiss open-data attribution (their requested form).
+    "meteoswiss": "Source: MeteoSwiss",
+    # ePIN data may be used freely in any medium; we cite the data owner (LGL).
+    "epin": "Source: ePIN, Bayerisches Landesamt für Gesundheit und Lebensmittelsicherheit (LGL)",
 }
 
 # Config-entry / options keys. Location uses homeassistant.const
@@ -73,6 +83,7 @@ CONF_ENABLED: Final = "enabled"
 CONF_API_KEY: Final = "api_key"  # local copy to keep const free of HA imports
 CONF_COUNTRY: Final = "country"
 CONF_REGION: Final = "region"  # DWD partregion_id
+CONF_STATION: Final = "station"  # MeteoSwiss / ePIN resolved nearest-station code
 
 # Second source (added in milestone 3a; disabled until a key is supplied).
 SOURCE_POLLENINFORMATION: Final = "polleninformation"
@@ -81,11 +92,20 @@ SOURCE_POLLENINFORMATION_NAME: Final = "Polleninformation"
 # Third source (added in the DWD milestone; Germany only, keyless, off by default).
 SOURCE_DWD: Final = "dwd"
 
+# Station-picker sources (v1.1 milestone; keyless, grains/m³, off by default).
+# Both auto-pick the nearest measuring station to the configured location.
+SOURCE_METEOSWISS: Final = "meteoswiss"  # Switzerland; MeteoSwiss OGD pollen
+SOURCE_EPIN: Final = "epin"  # Bavaria; ePIN (LGL)
+
 # polleninformation publishes a daily index (cadence ~8–24 h), so polling it
 # hourly would waste a free public API. Use a fixed, slower interval.
 PI_UPDATE_INTERVAL_MIN: Final = 6 * 60
 # DWD updates once daily (~11:00) — poll slowly.
 DWD_UPDATE_INTERVAL_MIN: Final = 12 * 60
+# MeteoSwiss re-publishes hourly but each poll re-downloads the year's recent
+# CSV; ePIN is 3-hourly. Poll both every 3 h — fresh enough, easy on free feeds.
+METEOSWISS_UPDATE_INTERVAL_MIN: Final = 3 * 60
+EPIN_UPDATE_INTERVAL_MIN: Final = 3 * 60
 
 # DWD partregion_id -> display name (captured from the s31fg.json feed; factual,
 # stable — bundled so the config flow needs no network call). id -1 is the
@@ -134,6 +154,8 @@ def new_sources_config() -> dict[str, dict[str, object]]:
             CONF_COUNTRY: "",
         },
         SOURCE_DWD: {CONF_ENABLED: False, CONF_REGION: ""},
+        SOURCE_METEOSWISS: {CONF_ENABLED: False, CONF_STATION: ""},
+        SOURCE_EPIN: {CONF_ENABLED: False, CONF_STATION: ""},
     }
 
 # Defaults and guardrails.

@@ -29,9 +29,12 @@ from custom_components.pollenwatch.const import (
     CONF_REGION,
     CONF_SENSITIVITY,
     CONF_SOURCES,
+    CONF_STATION,
     CONF_UPDATE_INTERVAL,
     DOMAIN,
     SOURCE_DWD,
+    SOURCE_EPIN,
+    SOURCE_METEOSWISS,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
     new_sources_config,
@@ -468,6 +471,88 @@ async def test_dwd_out_of_coverage_leaves_two_source_consensus_unchanged(
     # No DWD sensors created.
     assert hass.states.get("sensor.pollenwatch_dwd_grass") is None
     assert hass.states.get("sensor.pollenwatch_dwd_birch") is None
+
+
+def _graz_entry_with_source(source_key: str) -> MockConfigEntry:
+    """Graz (Austria) + open_meteo + polleninformation, plus one station-picker
+    source enabled. Graz is outside both MeteoSwiss (CH) and ePIN (Bavaria), so
+    the extra source must contribute nothing."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="47.0700_15.4400",
+        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44, CONF_ALLERGENS: ["grass", "birch"]},
+        options={
+            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SOURCES: {
+                SOURCE_OPEN_METEO: {CONF_ENABLED: True},
+                SOURCE_POLLENINFORMATION: {
+                    CONF_ENABLED: True, CONF_API_KEY: "k", CONF_COUNTRY: "AT",
+                },
+                source_key: {CONF_ENABLED: True, CONF_STATION: ""},
+            },
+        },
+    )
+
+
+@pytest.mark.parametrize("source_key", [SOURCE_METEOSWISS, SOURCE_EPIN])
+async def test_station_source_out_of_coverage_leaves_consensus_unchanged(
+    hass: HomeAssistant, source_key: str
+) -> None:
+    # Graz + MeteoSwiss (or ePIN) enabled: the station source fails its bbox
+    # offline -> out_of_coverage, contributing NOTHING. The existing 2-source
+    # consensus must be byte-for-byte unchanged, with no new device/entities.
+    # The station source's async_fetch is NOT mocked: it short-circuits on the
+    # bounding box before any network call.
+    entry = _graz_entry_with_source(source_key)
+    entry.add_to_hass(hass)
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),  # grass 20.8 -> lvl 1
+        patch(_PI_FETCH, new=AsyncMock(return_value=_pi_result())),  # grass idx 3 -> lvl 2
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    grass = hass.states.get("sensor.pollenwatch_analytics_grass_consensus")
+    assert grass is not None
+    # EXACTLY the two covered sources — no meteoswiss/epin key.
+    assert grass.attributes["source_levels"] == {"open_meteo": 1, "polleninformation": 2}
+    assert grass.state == "high"
+    # No sensors for the out-of-coverage station source.
+    assert hass.states.get(f"sensor.pollenwatch_{source_key}_grass") is None
+    assert hass.states.get(f"sensor.pollenwatch_{source_key}_birch") is None
+
+
+async def test_supports_history_flag_skips_recent_percentile(
+    hass: HomeAssistant, monkeypatch
+) -> None:
+    # The analytics layer must respect supports_history: a source flagged False
+    # gets no recent_percentile sensor, while its raw sensor and consensus stay.
+    monkeypatch.setattr(OpenMeteoSource, "supports_history", False)
+    entry = _two_source_entry()  # open_meteo + polleninformation
+    entry.add_to_hass(hass)
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),
+        patch(_PI_FETCH, new=AsyncMock(return_value=_pi_result())),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # open_meteo: no recent_percentile (flag False), but raw sensor still exists.
+    assert hass.states.get("sensor.pollenwatch_open_meteo_grass") is not None
+    assert (
+        hass.states.get("sensor.pollenwatch_open_meteo_grass_recent_percentile")
+        is None
+    )
+    # polleninformation (flag still True) keeps its recent_percentile.
+    assert (
+        hass.states.get("sensor.pollenwatch_polleninformation_grass_recent_percentile")
+        is not None
+    )
+    # Consensus is unaffected by the percentile flag.
+    assert hass.states.get("sensor.pollenwatch_analytics_grass_consensus") is not None
 
 
 async def test_no_consensus_with_single_source(hass: HomeAssistant) -> None:

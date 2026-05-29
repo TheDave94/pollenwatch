@@ -42,7 +42,9 @@
           "sensitivity_olive": "Olive sensitivity (×)",
           "sensitivity_ragweed": "Ragweed sensitivity (×)",
           "enable_dwd": "Enable DWD Pollenflug (Germany, third source)",
-          "region": "DWD region"
+          "region": "DWD region",
+          "enable_meteoswiss": "Enable MeteoSwiss (Switzerland)",
+          "enable_epin": "Enable ePIN (Bavaria)"
         },
         "data_description": {
           "update_interval": "How often to poll Open-Meteo. Minimum 60 minutes to be a good citizen on a free public API.",
@@ -50,7 +52,9 @@
           "country": "The country whose pollen network covers your location.",
           "api_key": "Stored encrypted in Home Assistant; never written to disk in plain text.",
           "enable_dwd": "Adds the Deutscher Wetterdienst forecast. Germany only; no API key needed.",
-          "region": "Your DWD forecast region within Germany."
+          "region": "Your DWD forecast region within Germany.",
+          "enable_meteoswiss": "Adds the MeteoSwiss automatic network. Switzerland only; no API key. The nearest measuring station is picked automatically — currently: {ms_station}.",
+          "enable_epin": "Adds the ePIN automatic network. Bavaria only; no API key. The nearest measuring station is picked automatically — currently: {epin_station}."
         }
       }
     },
@@ -59,8 +63,8 @@
       "country_required": "Select a country to enable polleninformation.",
       "api_key_required": "Enter your polleninformation API key.",
       "invalid_api_key": "polleninformation rejected the API key. Check it and try again.",
-      "out_of_coverage": "polleninformation has no data for this location in the selected country.",
-      "cannot_connect": "Could not reach polleninformation. Check your connection and try again.",
+      "out_of_coverage": "The selected source has no pollen data for this location.",
+      "cannot_connect": "Could not reach the selected pollen source. Check your connection and try again.",
       "region_required": "Select a DWD region to enable DWD."
     }
   },

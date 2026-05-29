@@ -79,6 +79,8 @@ class PolleninformationSource:
     """Fetches and normalises the daily pollen index from polleninformation.at."""
 
     name = SOURCE_NAME
+    supports_history = True
+    provides_history_series = False  # daily index only -> recorder-baselined
 
     def __init__(
         self,

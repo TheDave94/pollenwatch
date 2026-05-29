@@ -42,7 +42,9 @@
           "sensitivity_olive": "Olive-Empfindlichkeit (×)",
           "sensitivity_ragweed": "Ambrosia-Empfindlichkeit (×)",
           "enable_dwd": "DWD Pollenflug aktivieren (Deutschland, dritte Quelle)",
-          "region": "DWD-Region"
+          "region": "DWD-Region",
+          "enable_meteoswiss": "MeteoSwiss aktivieren (Schweiz)",
+          "enable_epin": "ePIN aktivieren (Bayern)"
         },
         "data_description": {
           "update_interval": "Wie oft Open-Meteo abgefragt wird. Mindestens 60 Minuten, um die kostenlose öffentliche API zu schonen.",
@@ -50,7 +52,9 @@
           "country": "Das Land, dessen Pollennetz deinen Standort abdeckt.",
           "api_key": "Wird in Home Assistant verschlüsselt gespeichert; nie im Klartext auf die Festplatte geschrieben.",
           "enable_dwd": "Fügt die Vorhersage des Deutschen Wetterdienstes hinzu. Nur Deutschland; kein API-Schlüssel nötig.",
-          "region": "Deine DWD-Vorhersageregion innerhalb Deutschlands."
+          "region": "Deine DWD-Vorhersageregion innerhalb Deutschlands.",
+          "enable_meteoswiss": "Fügt das automatische Messnetz von MeteoSwiss hinzu. Nur Schweiz; kein API-Schlüssel. Die nächste Messstation wird automatisch gewählt — aktuell: {ms_station}.",
+          "enable_epin": "Fügt das automatische ePIN-Messnetz hinzu. Nur Bayern; kein API-Schlüssel. Die nächste Messstation wird automatisch gewählt — aktuell: {epin_station}."
         }
       }
     },
@@ -59,8 +63,8 @@
       "country_required": "Wähle ein Land, um polleninformation zu aktivieren.",
       "api_key_required": "Gib deinen polleninformation API-Schlüssel ein.",
       "invalid_api_key": "polleninformation hat den API-Schlüssel abgelehnt. Bitte prüfen und erneut versuchen.",
-      "out_of_coverage": "polleninformation hat keine Daten für diesen Standort im gewählten Land.",
-      "cannot_connect": "polleninformation konnte nicht erreicht werden. Prüfe deine Verbindung und versuche es erneut.",
+      "out_of_coverage": "Die gewählte Quelle hat keine Pollendaten für diesen Standort.",
+      "cannot_connect": "Die gewählte Pollenquelle konnte nicht erreicht werden. Prüfe deine Verbindung und versuche es erneut.",
       "region_required": "Wähle eine DWD-Region, um DWD zu aktivieren."
     }
   },

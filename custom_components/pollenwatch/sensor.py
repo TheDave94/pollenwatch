@@ -104,7 +104,9 @@ async def async_setup_entry(
                     sensitivity.get(allergen, DEFAULT_SENSITIVITY),
                 )
             )
-            if analytics is not None:
+            # recent_percentile only for sources whose data may be baselined
+            # (supports_history). A no-storage source would skip it cleanly.
+            if analytics is not None and coordinator.source.supports_history:
                 entities.append(
                     RecentPercentileSensor(analytics, entry, source_key, allergen)
                 )
@@ -218,6 +220,9 @@ class PollenWatchSensor(
         if series.native is not None:
             # Source's native categorical value (e.g. DWD "2-3").
             attrs["native_value"] = series.native
+        if result.station is not None:
+            # Station-based sources (MeteoSwiss, ePIN): which station was picked.
+            attrs["station"] = result.station
         return attrs
 
 

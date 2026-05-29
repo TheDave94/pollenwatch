@@ -41,20 +41,27 @@ from .const import (
     CONF_ENABLED,
     CONF_REGION,
     CONF_SOURCES,
+    CONF_STATION,
     CONF_UPDATE_INTERVAL,
     DEFAULT_ALLERGENS,
     DEFAULT_UPDATE_INTERVAL_MIN,
     DOMAIN,
     DWD_UPDATE_INTERVAL_MIN,
+    EPIN_UPDATE_INTERVAL_MIN,
+    METEOSWISS_UPDATE_INTERVAL_MIN,
     OPEN_METEO_FORECAST_DAYS,
     OPEN_METEO_PAST_DAYS,
     PI_UPDATE_INTERVAL_MIN,
     SOURCE_DWD,
+    SOURCE_EPIN,
+    SOURCE_METEOSWISS,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
 )
 from .sources.base import AllergenSeries, PollenSource, SourceError, SourceResult
 from .sources.dwd import DwdSource
+from .sources.epin import EpinSource
+from .sources.meteoswiss import MeteoSwissSource
 from .sources.open_meteo import OpenMeteoSource
 from .sources.polleninformation import PolleninformationSource
 
@@ -172,6 +179,28 @@ def build_coordinators(
             hass, entry, dwd, SOURCE_DWD, DWD_UPDATE_INTERVAL_MIN
         )
 
+    # MeteoSwiss / ePIN auto-pick the nearest station from the location; a
+    # stored station (resolved at probe time) is honoured, else picked here.
+    # Outside their bbox the fetch returns out_of_coverage, so an enabled but
+    # uncovered source simply contributes no data (no sensors, no consensus).
+    ms_cfg = sources_cfg.get(SOURCE_METEOSWISS, {})
+    if ms_cfg.get(CONF_ENABLED):
+        meteoswiss = MeteoSwissSource(
+            latitude, longitude, allergens, station=ms_cfg.get(CONF_STATION) or None
+        )
+        coordinators[SOURCE_METEOSWISS] = PollenWatchSourceCoordinator(
+            hass, entry, meteoswiss, SOURCE_METEOSWISS, METEOSWISS_UPDATE_INTERVAL_MIN
+        )
+
+    epin_cfg = sources_cfg.get(SOURCE_EPIN, {})
+    if epin_cfg.get(CONF_ENABLED):
+        epin = EpinSource(
+            latitude, longitude, allergens, station=epin_cfg.get(CONF_STATION) or None
+        )
+        coordinators[SOURCE_EPIN] = PollenWatchSourceCoordinator(
+            hass, entry, epin, SOURCE_EPIN, EPIN_UPDATE_INTERVAL_MIN
+        )
+
     return coordinators
 
 
@@ -217,14 +246,20 @@ class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator[AnalyticsData]):
     def _source_level(
         self, source_key: str, species: str, series: AllergenSeries
     ) -> int | None:
-        """Map a source's current reading to the common 0/1/2 level (or None)."""
+        """Map a source's current reading to the common 0/1/2 level (or None).
+
+        DWD maps from its native 7-point string and polleninformation from its
+        0–4 index; every other source is a grains/m³ concentration and buckets
+        via the shared EAACI thresholds — so new concentration sources
+        (MeteoSwiss, ePIN) need no new mapping code.
+        """
         if source_key == SOURCE_DWD:
             return dwd_collapse(series.native)  # native 7-point string
         if series.current is None:
             return None
-        if source_key == SOURCE_OPEN_METEO:
-            return bucket_level(species, series.current)
-        return collapse_index(int(series.current))  # index-scale (polleninformation)
+        if source_key == SOURCE_POLLENINFORMATION:
+            return collapse_index(int(series.current))  # 0–4 index
+        return bucket_level(species, series.current)  # grains/m³ concentration
 
     async def _async_update_data(self) -> AnalyticsData:
         today = dt_util.now().date().isoformat()
@@ -234,15 +269,24 @@ class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator[AnalyticsData]):
             data = coordinator.data
             if data is None:
                 continue
+            source = coordinator.source
+            # Self-baselining sources rank their own latest day (observation
+            # feeds like MeteoSwiss lag, so the calendar today may be absent).
+            ref_day = (data.current_time or today)[:10]
             for species, series in data.allergens.items():
-                if source_key == SOURCE_OPEN_METEO:
-                    percentiles[(source_key, species)] = recent_percentile_from_series(
-                        data.times, series.values, today
-                    )
-                else:
-                    percentiles[(source_key, species)] = await self._recorder_percentile(
-                        source_key, species, today
-                    )
+                if source.supports_history:
+                    # supports_history=False (e.g. a future no-storage source)
+                    # gets no recent_percentile at all.
+                    if source.provides_history_series:
+                        percentiles[(source_key, species)] = (
+                            recent_percentile_from_series(
+                                data.times, series.values, ref_day
+                            )
+                        )
+                    else:
+                        percentiles[(source_key, species)] = (
+                            await self._recorder_percentile(source_key, species, today)
+                        )
                 level = self._source_level(source_key, species, series)
                 if level is not None:
                     levels.setdefault(species, {})[source_key] = level

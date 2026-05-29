@@ -33,6 +33,7 @@ from .const import (
     CONF_REGION,
     CONF_SENSITIVITY,
     CONF_SOURCES,
+    CONF_STATION,
     CONF_UPDATE_INTERVAL,
     DEFAULT_ALLERGENS,
     DEFAULT_SENSITIVITY,
@@ -44,11 +45,15 @@ from .const import (
     MIN_SENSITIVITY,
     MIN_UPDATE_INTERVAL_MIN,
     SOURCE_DWD,
+    SOURCE_EPIN,
+    SOURCE_METEOSWISS,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
     new_sources_config,
 )
 from .coordinator import PollenWatchConfigEntry, _entry_option
+from .sources import epin as epin_source
+from .sources import meteoswiss as ms_source
 from .sources.base import SourceAuthError, SourceError, SourceStatus
 from .sources.dwd import DwdSource
 from .sources.open_meteo import OpenMeteoSource
@@ -57,6 +62,15 @@ from .sources.polleninformation import SUPPORTED_COUNTRIES, PolleninformationSou
 CONF_LOCATION = "location"
 CONF_ENABLE_PI = "enable_polleninformation"
 CONF_ENABLE_DWD = "enable_dwd"
+CONF_ENABLE_MS = "enable_meteoswiss"
+CONF_ENABLE_EPIN = "enable_epin"
+
+
+def _station_label(stations: dict[str, tuple[str, float, float]], code: str) -> str:
+    """Human label for a stored station code, or a placeholder if unset."""
+    if code and code in stations:
+        return f"{stations[code][0]} ({code})"
+    return "auto-detected when enabled"
 
 _ALLERGEN_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
@@ -146,6 +160,38 @@ async def _async_probe_dwd(
     if result.status is SourceStatus.OUT_OF_COVERAGE:
         return "out_of_coverage"
     return None
+
+
+async def _async_probe_meteoswiss(
+    hass, latitude: float, longitude: float, allergens: list[str]
+) -> tuple[str | None, str]:
+    """Probe MeteoSwiss; return (error_key | None, resolved_station_code)."""
+    source = ms_source.MeteoSwissSource(latitude, longitude, allergens)
+    if source.station is None:
+        return "out_of_coverage", ""
+    try:
+        result = await source.async_fetch(session=async_get_clientsession(hass))
+    except SourceError:
+        return "cannot_connect", ""
+    if result.status is SourceStatus.OUT_OF_COVERAGE:
+        return "out_of_coverage", ""
+    return None, source.station
+
+
+async def _async_probe_epin(
+    hass, latitude: float, longitude: float, allergens: list[str]
+) -> tuple[str | None, str]:
+    """Probe ePIN; return (error_key | None, resolved_station_code)."""
+    source = epin_source.EpinSource(latitude, longitude, allergens)
+    if source.station is None:
+        return "out_of_coverage", ""
+    try:
+        result = await source.async_fetch(session=async_get_clientsession(hass))
+    except SourceError:
+        return "cannot_connect", ""
+    if result.status is SourceStatus.OUT_OF_COVERAGE:
+        return "out_of_coverage", ""
+    return None, source.station
 
 
 async def _async_probe_coverage(
@@ -247,6 +293,8 @@ class PollenWatchOptionsFlow(OptionsFlow):
         sources = _entry_option(entry, CONF_SOURCES, {})
         pi_cfg = sources.get(SOURCE_POLLENINFORMATION, {})
         dwd_cfg = sources.get(SOURCE_DWD, {})
+        ms_cfg = sources.get(SOURCE_METEOSWISS, {})
+        epin_cfg = sources.get(SOURCE_EPIN, {})
 
         if user_input is not None:
             allergens = user_input[CONF_ALLERGENS]
@@ -255,6 +303,13 @@ class PollenWatchOptionsFlow(OptionsFlow):
             api_key = user_input.get(CONF_API_KEY, "")
             enable_dwd = user_input.get(CONF_ENABLE_DWD, False)
             region_raw = user_input.get(CONF_REGION)
+            enable_ms = user_input.get(CONF_ENABLE_MS, False)
+            enable_epin = user_input.get(CONF_ENABLE_EPIN, False)
+            # Resolved nearest-station codes (carried over unless re-probed).
+            ms_station = ms_cfg.get(CONF_STATION, "")
+            epin_station = epin_cfg.get(CONF_STATION, "")
+            latitude = entry.data[CONF_LATITUDE]
+            longitude = entry.data[CONF_LONGITUDE]
 
             if not allergens:
                 errors[CONF_ALLERGENS] = "no_allergens"
@@ -265,12 +320,7 @@ class PollenWatchOptionsFlow(OptionsFlow):
                     errors[CONF_API_KEY] = "api_key_required"
                 if not errors:
                     error = await _async_probe_polleninformation(
-                        self.hass,
-                        entry.data[CONF_LATITUDE],
-                        entry.data[CONF_LONGITUDE],
-                        country,
-                        api_key,
-                        allergens,
+                        self.hass, latitude, longitude, country, api_key, allergens
                     )
                     if error:
                         errors["base"] = error
@@ -279,14 +329,22 @@ class PollenWatchOptionsFlow(OptionsFlow):
                     errors[CONF_REGION] = "region_required"
                 elif not errors:
                     error = await _async_probe_dwd(
-                        self.hass,
-                        entry.data[CONF_LATITUDE],
-                        entry.data[CONF_LONGITUDE],
-                        int(region_raw),
-                        allergens,
+                        self.hass, latitude, longitude, int(region_raw), allergens
                     )
                     if error:
                         errors["base"] = error
+            if enable_ms and not errors:
+                error, ms_station = await _async_probe_meteoswiss(
+                    self.hass, latitude, longitude, allergens
+                )
+                if error:
+                    errors["base"] = error
+            if enable_epin and not errors:
+                error, epin_station = await _async_probe_epin(
+                    self.hass, latitude, longitude, allergens
+                )
+                if error:
+                    errors["base"] = error
 
             if not errors:
                 sensitivity = {
@@ -311,6 +369,14 @@ class PollenWatchOptionsFlow(OptionsFlow):
                                 CONF_REGION: int(region_raw)
                                 if (enable_dwd and region_raw not in (None, ""))
                                 else "",
+                            },
+                            SOURCE_METEOSWISS: {
+                                CONF_ENABLED: enable_ms,
+                                CONF_STATION: ms_station if enable_ms else "",
+                            },
+                            SOURCE_EPIN: {
+                                CONF_ENABLED: enable_epin,
+                                CONF_STATION: epin_station if enable_epin else "",
                             },
                         },
                     }
@@ -351,6 +417,12 @@ class PollenWatchOptionsFlow(OptionsFlow):
                     else None
                 },
             ): _DWD_REGION_SELECTOR,
+            vol.Required(
+                CONF_ENABLE_MS, default=ms_cfg.get(CONF_ENABLED, False)
+            ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_ENABLE_EPIN, default=epin_cfg.get(CONF_ENABLED, False)
+            ): selector.BooleanSelector(),
         }
         # Personal sensitivity multipliers (one per species).
         for species in ALLERGENS:
@@ -361,5 +433,15 @@ class PollenWatchOptionsFlow(OptionsFlow):
                 )
             ] = _SENSITIVITY_SELECTOR
         return self.async_show_form(
-            step_id="init", data_schema=vol.Schema(schema_dict), errors=errors
+            step_id="init",
+            data_schema=vol.Schema(schema_dict),
+            errors=errors,
+            description_placeholders={
+                "ms_station": _station_label(
+                    ms_source.STATIONS, ms_cfg.get(CONF_STATION, "")
+                ),
+                "epin_station": _station_label(
+                    epin_source.STATIONS, epin_cfg.get(CONF_STATION, "")
+                ),
+            },
         )

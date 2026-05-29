@@ -9,16 +9,17 @@ ecosystem already has ~10 pollen integrations that each wrap a *single*
 provider; PollenWatch instead **combines independent sources** and adds a
 **cross-source analytics layer** on top. That combination is the point.
 
-> **Status: release candidate (v1.0.0-rc1) — feature-complete, validating.**
-> Not yet declared stable. Two things to know before you rely on it:
-> - **DWD has never run in production.** Its data path is validated against the
->   live DWD feed and mocked tests, but the maintainer is outside DWD coverage
->   (Austria), so a German user enabling DWD is its first real-world run —
->   please [open an issue](https://github.com/TheDave94/pollenwatch/issues) if
+> **Status: release candidate (v1.1.0-rc1) — feature-complete, validating.**
+> Not yet declared stable. A few things to know before you rely on it:
+> - **DWD, MeteoSwiss and ePIN have never run in production.** Their data paths
+>   are validated against the live feeds and mocked tests, but the maintainer is
+>   in Austria — outside all three coverage areas (Germany / Switzerland /
+>   Bavaria) — so a user enabling one of them is its first real-world run.
+>   Please [open an issue](https://github.com/TheDave94/pollenwatch/issues) if
 >   anything looks off.
-> - **Consensus has a known 3-source edge** ([#1](https://github.com/TheDave94/pollenwatch/issues/1)):
->   with ≥3 sources, a lone higher reading can pull the consensus up without
->   flagging divergence. Documented and deferred for a redesign.
+> - **Consensus has a known lone-higher edge** ([#1](https://github.com/TheDave94/pollenwatch/issues/1)):
+>   with ≥3 sources (now up to 5), a single higher reading can pull the consensus
+>   up without flagging divergence. Documented and deferred for a redesign.
 >
 > Minimum Home Assistant **2024.11.0** (see
 > [HA_COMPATIBILITY.md](HA_COMPATIBILITY.md) for the API audit).
@@ -26,31 +27,41 @@ provider; PollenWatch instead **combines independent sources** and adds a
 ## Sources
 
 Each source is optional except Open-Meteo, and **what you get depends on your
-location**: outside Germany you get no DWD; outside the 13 polleninformation
-countries you get only Open-Meteo (which covers all of Europe).
+location**: outside Germany you get no DWD; outside Switzerland no MeteoSwiss;
+outside Bavaria no ePIN; outside the 13 polleninformation countries you get only
+Open-Meteo (which covers all of Europe).
 
 | Source | Coverage | API key | Notes |
 | --- | --- | --- | --- |
-| **Open-Meteo (CAMS)** | All of Europe | none | **Always-on primary.** 6 species, hourly, 5-day forecast, 92-day backfill. |
-| **polleninformation.at** | 13 countries¹ | **free key required** | Optional. Daily 0–4 index; more species, country-dependent. |
-| **DWD Pollenflug** | **Germany only** | none | Optional. Daily 7-point regional index; you pick your DWD region. |
+| **Open-Meteo (CAMS)** | All of Europe | none | **Always-on primary.** 6 species, hourly, 5-day **forecast**, 92-day backfill. |
+| **polleninformation.at** | 13 countries¹ | **free key required** | Optional. Daily 0–4 index **forecast**; more species, country-dependent. |
+| **DWD Pollenflug** | **Germany only** | none | Optional. Daily 7-point regional index **forecast**; you pick your DWD region. |
+| **MeteoSwiss** | **Switzerland only** | none | Optional, **observation-only**. Hourly grains/m³; nearest of 19 automatic stations auto-picked. Covers alder/birch/grass. |
+| **ePIN (Bavaria)** | **Bavaria only** | none | Optional, **observation-only**. 3-hourly grains/m³; nearest of 8 automatic stations auto-picked. No olive. |
 
 ¹ AT, CH, DE, ES, FR, GB, IT, LV, LT, PL, SE, TR, UA.
 
+**Forecast vs observation:** Open-Meteo, polleninformation and DWD provide a
+*forward forecast* (today + coming days). MeteoSwiss and ePIN are *observation
+networks* — they report measured concentrations up to the latest reading, with
+**no tomorrow value**, so their sensors show the current/most-recent reading and
+today's running peak rather than a multi-day outlook.
+
 PollenWatch tracks six canonical allergens — **alder, birch, grass, mugwort,
-olive, ragweed**. Not every source covers every one (e.g. DWD has no olive); a
-source only produces sensors for the allergens it actually reports at your
-location.
+olive, ragweed**. Not every source covers every one (DWD and ePIN have no olive;
+MeteoSwiss measures only alder, birch and grass); a source only produces sensors
+for the allergens it actually reports at your location.
 
 ## Analytics
 
 On top of the raw per-source sensors:
 
 - **recent_percentile** — today's level versus the recent window (per source).
-  Open-Meteo computes it on day one from its 92-day backfill; the other sources
-  baseline on Home Assistant recorder history and honestly report
-  "insufficient history" until ~2 weeks accrue (and "off_season" when the whole
-  window is zero).
+  Open-Meteo (92-day backfill) and MeteoSwiss (months of recent hourly data)
+  compute it on day one from their own history; polleninformation, DWD and ePIN
+  baseline on Home Assistant recorder history and honestly report "insufficient
+  history" until ~2 weeks accrue (and "off_season" when the whole window is
+  zero).
 - **personal_score** — a source's raw value × your per-species sensitivity
   multiplier (0.0–2.0), for personal-threshold automations.
 - **consensus + divergence** *(cross-source)* — for any allergen ≥2 sources
@@ -60,7 +71,7 @@ On top of the raw per-source sensors:
   is sourced, not invented). **consensus** is categorical — `none` / `low` /
   `high` / `mixed` — and **divergence** is a binary flag that turns on when the
   sources genuinely disagree. Note the [#1](https://github.com/TheDave94/pollenwatch/issues/1)
-  3-source edge above.
+  lone-higher edge above (now reachable with up to 5 sources).
 
 ## Installation
 
@@ -92,14 +103,21 @@ optional sources:
   key (requested from polleninformation.at). Stored encrypted in HA.
 - **DWD** — toggle on and pick your DWD region (Germany only; enabling it for a
   non-German location is rejected as out-of-coverage).
+- **MeteoSwiss** (Switzerland) and **ePIN** (Bavaria) — just toggle on; no key,
+  no region. The nearest measuring station to your location is picked
+  automatically (shown in the option description and as a `station` attribute on
+  the sensors). Enabling either outside its country/region is rejected as
+  out-of-coverage.
 
 ## Entities
 
-Raw sensors live under a per-source device (e.g. "PollenWatch Open-Meteo"):
+Raw sensors live under a per-source device (e.g. "PollenWatch Open-Meteo",
+"PollenWatch MeteoSwiss", "PollenWatch ePIN"):
 `sensor.pollenwatch_<source>_<allergen>` (state = that source's current value;
-attributes include a daily-peak forecast and provenance). Source-specific
-derived sensors sit alongside them:
-`..._<allergen>_recent_percentile` and `..._<allergen>_personal_score`.
+attributes include a daily-peak forecast and provenance — and, for the
+station-based sources, the picked `station`). Source-specific derived sensors sit
+alongside them: `..._<allergen>_recent_percentile` and
+`..._<allergen>_personal_score`.
 
 The cross-source metrics live under a separate **"PollenWatch Analytics"**
 device: `sensor.pollenwatch_analytics_<allergen>_consensus` and
@@ -122,6 +140,10 @@ PollenWatch's data carries these required attributions:
 > © Polleninformation Austria
 
 > © Deutscher Wetterdienst (DWD)
+
+> Source: MeteoSwiss
+
+> Source: ePIN, Bayerisches Landesamt für Gesundheit und Lebensmittelsicherheit (LGL)
 
 ## License
 
