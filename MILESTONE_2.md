@@ -109,9 +109,42 @@ scoring, a second source, the pollenprognos-card actually rendering us.
 weighting (milestone 3 analytics; equal weighting for v1.0) and kickoff **Q4**
 languages beyond en/de (staying en + de for v1.0).
 
-## 7. pollenprognos-card naming — findings (TBD before sensor.py)
+## 7. pollenprognos-card naming — findings & decision
 
-_To be filled in from the card research task, before `sensor.py` is written._
+Read `krissen/pollenprognos-card` `src/adapter-registry.js` and the `dwd` / `peu`
+adapters. How the card discovers entities:
+
+- **Per-integration adapters keyed by entity-ID prefix.** The registry maps an
+  integration id → adapter (pp, dwd, peu, silam, kleenex, plu, atmo, gp, gpl,
+  msw). Each adapter hard-codes that integration's prefix and allergen slug map,
+  e.g. DWD matches `sensor.pollenflug_<allergen>_<region>` and PEU matches
+  `sensor.polleninformation_<location>_<allergen>`.
+- **Consequence:** a brand-new integration is *not* auto-detected by any naming
+  trick — detection is adapter-gated. The only ways to be auto-detected are
+  (a) reuse an existing integration's exact prefix (wrong: semantic lie +
+  collision with the real integration + breaks once we have multiple sources),
+  or (b) contribute a `pollenwatch` adapter to the card.
+- **Manual mapping exists.** The card also supports a manual `entity_prefix`
+  (+ optional `entity_suffix`) path that resolves `<prefix><allergen_slug>`, so a
+  user can point the card at our sensors today without an adapter.
+- **Forecast attribute.** The card reads `sensor.attributes.forecast` expecting
+  an **array** (and honours `data_stale` / `stale_since`).
+
+**Decision (Q2): pick our own clean, branded naming now; defer auto-detection
+to a v1.1 card adapter.**
+
+- Entity IDs: **`sensor.pollenwatch_open_meteo_<allergen>`** (English allergen
+  slugs: alder, birch, grass, mugwort, olive, ragweed). Achieved with
+  `has_entity_name=True` + per-source device named **"PollenWatch Open-Meteo"**
+  and `translation_key=<allergen>` (UI shows "Grass" under the device; entity_id
+  slugs to the branded prefix that matches the ecosystem convention).
+- `unique_id = "{entry_id}_open_meteo_{allergen}"`.
+- Expose a `forecast` **list attribute** (4 daily-peak entries: `date` + peak
+  `value` in grains/m³) — useful for templates now and array-shaped so a future
+  card adapter / manual mapping can consume it. EAN level bucketing is analytics
+  (milestone 3), not added here.
+- **v1.1 follow-up (TODO):** contribute a `pollenwatch` adapter to
+  pollenprognos-card for auto-detection. Logged in `TODO.md`.
 
 ## 6. Estimated size
 

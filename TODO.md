@@ -4,6 +4,10 @@ Anything that is **not** in the settled v1.0 scope lands here, not in the code.
 Keep this list as the pressure-release valve so v1.0 actually ships.
 
 ## v1.1 candidates
+- Contribute a `pollenwatch` adapter to krissen/pollenprognos-card so the card
+  auto-detects our `sensor.pollenwatch_open_meteo_<allergen>` entities. Until
+  then, users map us via the card's manual `entity_prefix` option
+  (`pollenwatch_open_meteo_`). See MILESTONE_2.md §7.
 - Google Pollen as an optional source (commercial; add on user demand).
 - Source weighting in the consensus algorithm (station > model). v1.0 uses
   equal weighting.
