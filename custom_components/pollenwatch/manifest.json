@@ -1,0 +1,14 @@
+{
+  "domain": "pollenwatch",
+  "name": "PollenWatch",
+  "version": "0.0.1",
+  "documentation": "https://github.com/pollenwatch/pollenwatch",
+  "issue_tracker": "https://github.com/pollenwatch/pollenwatch/issues",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [],
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "quality_scale": "silver"
+}

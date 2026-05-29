@@ -1,0 +1,10 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "PollenWatch",
+        "description": "Pollendaten aus mehreren europäischen Quellen."
+      }
+    }
+  }
+}

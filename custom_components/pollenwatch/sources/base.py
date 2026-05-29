@@ -1,0 +1,139 @@
+"""Source-layer primitives shared by all PollenWatch data sources.
+
+This module is deliberately free of any Home Assistant imports so the data
+layer can be developed and tested in isolation (see ``open_meteo.py`` for a
+standalone ``python -m`` entry point).
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+from enum import StrEnum
+
+# Canonical allergen keys understood by the source layer. Individual sources
+# expose a subset of these. The analytics layer reconciles sources by this key.
+ALLERGENS: tuple[str, ...] = (
+    "alder",
+    "birch",
+    "grass",
+    "mugwort",
+    "olive",
+    "ragweed",
+)
+
+
+class SourceStatus(StrEnum):
+    """Outcome of a source fetch that did not raise."""
+
+    OK = "ok"
+    OUT_OF_COVERAGE = "out_of_coverage"
+
+
+class SourceError(Exception):
+    """Base class for source-layer errors."""
+
+
+class SourceUnavailable(SourceError):
+    """Transport failed (network/timeout/5xx) and retries were exhausted.
+
+    Distinct from :class:`SourceResponseError`: the request never produced a
+    usable response, so a later retry may succeed.
+    """
+
+
+class SourceResponseError(SourceError):
+    """The source returned a response we could not interpret.
+
+    Used for malformed payloads or error responses that do not correspond to a
+    recognised, expected condition (e.g. out-of-coverage). These usually signal
+    a bug or an upstream change rather than a transient failure.
+    """
+
+
+@dataclass(slots=True)
+class AllergenSeries:
+    """A single allergen's values for one source result.
+
+    ``values`` is aligned positionally to :attr:`SourceResult.times`. Entries
+    may be ``None`` where the source has no value (e.g. the tail of the
+    forecast horizon). Out-of-season values are typically ``0.0``, not ``None``.
+    """
+
+    allergen: str
+    unit: str
+    current: float | None
+    values: list[float | None] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class SourceResult:
+    """Normalised result from a single source fetch.
+
+    ``times`` holds the shared hourly time axis (past days + forecast). Each
+    allergen in :attr:`allergens` carries a ``values`` list aligned to it.
+    """
+
+    source: str
+    status: SourceStatus
+    requested_lat: float
+    requested_lon: float
+    snapped_lat: float | None = None
+    snapped_lon: float | None = None
+    timezone: str | None = None
+    elevation: float | None = None
+    times: list[str] = field(default_factory=list)
+    current_time: str | None = None
+    allergens: dict[str, AllergenSeries] = field(default_factory=dict)
+    generated_at: str | None = None
+    message: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        """True when usable allergen data was returned."""
+        return self.status is SourceStatus.OK
+
+    @property
+    def coordinate_shift_km(self) -> float | None:
+        """Great-circle distance between requested and snapped coordinates.
+
+        Open-Meteo snaps coordinates to a ~0.1° grid; surfacing the shift helps
+        users understand why their location is not exact. ``None`` when snapped
+        coordinates are unavailable.
+        """
+        if self.snapped_lat is None or self.snapped_lon is None:
+            return None
+        return _haversine_km(
+            self.requested_lat,
+            self.requested_lon,
+            self.snapped_lat,
+            self.snapped_lon,
+        )
+
+    @property
+    def forecast_split(self) -> int:
+        """Index in :attr:`times` where the forecast begins.
+
+        Entries before this index are past/backfill data; entries from this
+        index onward are the current hour and forecast. Falls back to ``0`` when
+        the current hour cannot be located in the time axis.
+        """
+        if self.current_time is not None:
+            try:
+                return self.times.index(self.current_time)
+            except ValueError:
+                pass
+        return 0
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in kilometres."""
+    radius = 6371.0088
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_phi / 2) ** 2
+        + math.cos(p1) * math.cos(p2) * math.sin(d_lambda / 2) ** 2
+    )
+    return 2 * radius * math.asin(math.sqrt(a))
