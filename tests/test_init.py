@@ -353,18 +353,18 @@ async def test_consensus_and_divergence(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
     # grass: OM level 2, pi level 2 -> agree "high", not diverged.
-    grass = hass.states.get("sensor.pollenwatch_consensus_grass")
+    grass = hass.states.get("sensor.pollenwatch_analytics_grass_consensus")
     assert grass is not None
     assert grass.state == "high"
     assert grass.attributes["level"] == 2
     assert grass.attributes["source_levels"] == {"open_meteo": 2, "polleninformation": 2}
-    assert hass.states.get("binary_sensor.pollenwatch_divergence_grass").state == "off"
+    assert hass.states.get("binary_sensor.pollenwatch_analytics_grass_divergence").state == "off"
 
     # birch: OM level 0, pi level 2 -> differ by 2 -> "mixed", diverged.
-    birch = hass.states.get("sensor.pollenwatch_consensus_birch")
+    birch = hass.states.get("sensor.pollenwatch_analytics_birch_consensus")
     assert birch.state == "mixed"
     assert birch.attributes["level"] is None
-    assert hass.states.get("binary_sensor.pollenwatch_divergence_birch").state == "on"
+    assert hass.states.get("binary_sensor.pollenwatch_analytics_birch_divergence").state == "on"
 
 
 async def test_no_consensus_with_single_source(hass: HomeAssistant) -> None:
@@ -378,8 +378,8 @@ async def test_no_consensus_with_single_source(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
     # Consensus needs >= 2 sources: no consensus/divergence entities at all.
-    assert hass.states.get("sensor.pollenwatch_consensus_grass") is None
-    assert hass.states.get("binary_sensor.pollenwatch_divergence_grass") is None
+    assert hass.states.get("sensor.pollenwatch_analytics_grass_consensus") is None
+    assert hass.states.get("binary_sensor.pollenwatch_analytics_grass_divergence") is None
 
 
 async def test_unload_entry(hass: HomeAssistant) -> None:
