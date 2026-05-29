@@ -31,6 +31,7 @@ from .analytics import (
     consensus,
     daily_peaks,
     dwd_collapse,
+    google_collapse,
     recent_percentile_from_series,
 )
 from .const import (
@@ -48,12 +49,14 @@ from .const import (
     DOMAIN,
     DWD_UPDATE_INTERVAL_MIN,
     EPIN_UPDATE_INTERVAL_MIN,
+    GOOGLE_UPDATE_INTERVAL_MIN,
     METEOSWISS_UPDATE_INTERVAL_MIN,
     OPEN_METEO_FORECAST_DAYS,
     OPEN_METEO_PAST_DAYS,
     PI_UPDATE_INTERVAL_MIN,
     SOURCE_DWD,
     SOURCE_EPIN,
+    SOURCE_GOOGLE,
     SOURCE_METEOSWISS,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
@@ -61,6 +64,7 @@ from .const import (
 from .sources.base import AllergenSeries, PollenSource, SourceError, SourceResult
 from .sources.dwd import DwdSource
 from .sources.epin import EpinSource
+from .sources.google import GoogleSource
 from .sources.meteoswiss import MeteoSwissSource
 from .sources.open_meteo import OpenMeteoSource
 from .sources.polleninformation import PolleninformationSource
@@ -201,6 +205,17 @@ def build_coordinators(
             hass, entry, epin, SOURCE_EPIN, EPIN_UPDATE_INTERVAL_MIN
         )
 
+    # Google: global coverage (no bbox), billing-gated key. Consensus-only —
+    # supports_history=False on the source keeps it out of recent_percentile.
+    google_cfg = sources_cfg.get(SOURCE_GOOGLE, {})
+    if google_cfg.get(CONF_ENABLED) and google_cfg.get(CONF_API_KEY):
+        google = GoogleSource(
+            latitude, longitude, google_cfg[CONF_API_KEY], allergens
+        )
+        coordinators[SOURCE_GOOGLE] = PollenWatchSourceCoordinator(
+            hass, entry, google, SOURCE_GOOGLE, GOOGLE_UPDATE_INTERVAL_MIN
+        )
+
     return coordinators
 
 
@@ -259,6 +274,8 @@ class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator[AnalyticsData]):
             return None
         if source_key == SOURCE_POLLENINFORMATION:
             return collapse_index(int(series.current))  # 0–4 index
+        if source_key == SOURCE_GOOGLE:
+            return google_collapse(series.current)  # UPI 0–5 index
         return bucket_level(species, series.current)  # grains/m³ concentration
 
     async def _async_update_data(self) -> AnalyticsData:

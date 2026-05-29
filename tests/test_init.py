@@ -34,12 +34,14 @@ from custom_components.pollenwatch.const import (
     DOMAIN,
     SOURCE_DWD,
     SOURCE_EPIN,
+    SOURCE_GOOGLE,
     SOURCE_METEOSWISS,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
     new_sources_config,
 )
 from custom_components.pollenwatch.sources.dwd import DwdSource
+from custom_components.pollenwatch.sources.google import GoogleSource
 from custom_components.pollenwatch.sources.open_meteo import OpenMeteoSource
 from custom_components.pollenwatch.sources.polleninformation import (
     PolleninformationSource,
@@ -50,6 +52,7 @@ _PI_FETCH = (
     "PolleninformationSource.async_fetch"
 )
 _DWD_FETCH = "custom_components.pollenwatch.sources.dwd.DwdSource.async_fetch"
+_GOOGLE_FETCH = "custom_components.pollenwatch.sources.google.GoogleSource.async_fetch"
 
 _SESSION = "custom_components.pollenwatch.coordinator.async_get_clientsession"
 _FETCH = "custom_components.pollenwatch.sources.open_meteo.OpenMeteoSource.async_fetch"
@@ -553,6 +556,85 @@ async def test_supports_history_flag_skips_recent_percentile(
     )
     # Consensus is unaffected by the percentile flag.
     assert hass.states.get("sensor.pollenwatch_analytics_grass_consensus") is not None
+
+
+def _google_result():
+    # grass UPI 4 -> level 2; birch UPI 0 -> level 0. Two forecast days.
+    payload = {
+        "regionCode": "AT",
+        "dailyInfo": [
+            {"date": {"year": 2026, "month": 5, "day": 29}, "plantInfo": [
+                {"code": "GRAMINALES", "indexInfo": {"code": "UPI", "value": 4}},
+                {"code": "BIRCH", "indexInfo": {"code": "UPI", "value": 0}},
+            ]},
+            {"date": {"year": 2026, "month": 5, "day": 30}, "plantInfo": [
+                {"code": "GRAMINALES", "indexInfo": {"code": "UPI", "value": 3}},
+                {"code": "BIRCH", "indexInfo": {"code": "UPI", "value": 0}},
+            ]},
+        ],
+    }
+    return GoogleSource(47.07, 15.44, "k", ["grass", "birch"]).parse(payload)
+
+
+def _google_entry() -> MockConfigEntry:
+    # Graz: open_meteo + polleninformation + Google all cover it.
+    return MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="47.0700_15.4400",
+        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44, CONF_ALLERGENS: ["grass", "birch"]},
+        options={
+            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SOURCES: {
+                SOURCE_OPEN_METEO: {CONF_ENABLED: True},
+                SOURCE_POLLENINFORMATION: {
+                    CONF_ENABLED: True, CONF_API_KEY: "k", CONF_COUNTRY: "AT",
+                },
+                SOURCE_GOOGLE: {CONF_ENABLED: True, CONF_API_KEY: "placeholder-key"},
+            },
+        },
+    )
+
+
+async def test_google_is_consensus_only_no_recent_percentile(
+    hass: HomeAssistant,
+) -> None:
+    # The supports_history=False payoff: Google contributes to consensus, gets a
+    # raw sensor + forecast + personal_score, but creates NO recent_percentile
+    # entity (its licence forbids storing a baseline).
+    entry = _google_entry()
+    entry.add_to_hass(hass)
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),  # grass 20.8 -> lvl 1
+        patch(_PI_FETCH, new=AsyncMock(return_value=_pi_result())),  # grass idx 3 -> lvl 2
+        patch(_GOOGLE_FETCH, new=AsyncMock(return_value=_google_result())),  # UPI 4 -> lvl 2
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # Raw sensor exists, on the UPI index, with a forward forecast.
+    raw = hass.states.get("sensor.pollenwatch_google_grass")
+    assert raw is not None
+    assert raw.state == "4"
+    assert raw.attributes.get("unit_of_measurement") is None  # index, not grains/m³
+    assert len(raw.attributes["forecast"]) >= 1
+    # personal_score works (no history needed).
+    assert hass.states.get("sensor.pollenwatch_google_grass_personal_score") is not None
+    # THE PAYOFF: no recent_percentile entity for Google.
+    assert hass.states.get("sensor.pollenwatch_google_grass_recent_percentile") is None
+    # ...while a storage-clean source (open_meteo) still gets one.
+    assert (
+        hass.states.get("sensor.pollenwatch_open_meteo_grass_recent_percentile")
+        is not None
+    )
+    # Google DOES contribute to consensus/divergence.
+    grass = hass.states.get("sensor.pollenwatch_analytics_grass_consensus")
+    assert grass is not None
+    assert grass.attributes["source_levels"] == {
+        "open_meteo": 1, "polleninformation": 2, "google": 2,
+    }
+    assert grass.state == "high"
 
 
 async def test_no_consensus_with_single_source(hass: HomeAssistant) -> None:

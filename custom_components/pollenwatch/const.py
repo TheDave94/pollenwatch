@@ -39,6 +39,7 @@ SOURCE_DEVICE_NAMES: Final[dict[str, str]] = {
     "dwd": "PollenWatch DWD",
     "meteoswiss": "PollenWatch MeteoSwiss",
     "epin": "PollenWatch ePIN",
+    "google": "PollenWatch Google",
 }
 SOURCE_DEVICE_MODELS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "CAMS via Open-Meteo",
@@ -46,6 +47,7 @@ SOURCE_DEVICE_MODELS: Final[dict[str, str]] = {
     "dwd": "DWD Pollenflug-Gefahrenindex",
     "meteoswiss": "MeteoSwiss automatic pollen network",
     "epin": "ePIN Bayern (automatic stations)",
+    "google": "Google Pollen API",
 }
 SOURCE_CONFIG_URLS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: "https://open-meteo.com/",
@@ -53,6 +55,7 @@ SOURCE_CONFIG_URLS: Final[dict[str, str]] = {
     "dwd": "https://www.dwd.de/pollenflug",
     "meteoswiss": "https://www.meteoswiss.admin.ch/services-and-publications/service/open-data.html",
     "epin": "https://www.pollenflug.bayern.de/",
+    "google": "https://developers.google.com/maps/documentation/pollen",
 }
 SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
     SOURCE_OPEN_METEO: ATTRIBUTION_CAMS,
@@ -62,6 +65,8 @@ SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
     "meteoswiss": "Source: MeteoSwiss",
     # ePIN data may be used freely in any medium; we cite the data owner (LGL).
     "epin": "Source: ePIN, Bayerisches Landesamt für Gesundheit und Lebensmittelsicherheit (LGL)",
+    # Google Maps Platform required attribution.
+    "google": "Source: Includes pollen data from Google",
 }
 
 # Config-entry / options keys. Location uses homeassistant.const
@@ -97,6 +102,11 @@ SOURCE_DWD: Final = "dwd"
 SOURCE_METEOSWISS: Final = "meteoswiss"  # Switzerland; MeteoSwiss OGD pollen
 SOURCE_EPIN: Final = "epin"  # Bavaria; ePIN (LGL)
 
+# Sixth source (v1.2 milestone): Google Pollen API. Global coverage, UPI 0–5
+# index, billing-gated key. CONSENSUS-ONLY — its licence forbids caching/storing
+# results, so it is never baselined into recent_percentile (supports_history off).
+SOURCE_GOOGLE: Final = "google"
+
 # polleninformation publishes a daily index (cadence ~8–24 h), so polling it
 # hourly would waste a free public API. Use a fixed, slower interval.
 PI_UPDATE_INTERVAL_MIN: Final = 6 * 60
@@ -106,6 +116,9 @@ DWD_UPDATE_INTERVAL_MIN: Final = 12 * 60
 # CSV; ePIN is 3-hourly. Poll both every 3 h — fresh enough, easy on free feeds.
 METEOSWISS_UPDATE_INTERVAL_MIN: Final = 3 * 60
 EPIN_UPDATE_INTERVAL_MIN: Final = 3 * 60
+# Google bills per request (free tier ~5000/month); a daily UPI forecast does not
+# need frequent polling, so poll twice a day to stay well within the free tier.
+GOOGLE_UPDATE_INTERVAL_MIN: Final = 12 * 60
 
 # DWD partregion_id -> display name (captured from the s31fg.json feed; factual,
 # stable — bundled so the config flow needs no network call). id -1 is the
@@ -156,6 +169,7 @@ def new_sources_config() -> dict[str, dict[str, object]]:
         SOURCE_DWD: {CONF_ENABLED: False, CONF_REGION: ""},
         SOURCE_METEOSWISS: {CONF_ENABLED: False, CONF_STATION: ""},
         SOURCE_EPIN: {CONF_ENABLED: False, CONF_STATION: ""},
+        SOURCE_GOOGLE: {CONF_ENABLED: False, CONF_API_KEY: ""},
     }
 
 # Defaults and guardrails.

@@ -46,6 +46,7 @@ from .const import (
     MIN_UPDATE_INTERVAL_MIN,
     SOURCE_DWD,
     SOURCE_EPIN,
+    SOURCE_GOOGLE,
     SOURCE_METEOSWISS,
     SOURCE_OPEN_METEO,
     SOURCE_POLLENINFORMATION,
@@ -56,6 +57,7 @@ from .sources import epin as epin_source
 from .sources import meteoswiss as ms_source
 from .sources.base import SourceAuthError, SourceError, SourceStatus
 from .sources.dwd import DwdSource
+from .sources.google import GoogleSource
 from .sources.open_meteo import OpenMeteoSource
 from .sources.polleninformation import SUPPORTED_COUNTRIES, PolleninformationSource
 
@@ -64,6 +66,9 @@ CONF_ENABLE_PI = "enable_polleninformation"
 CONF_ENABLE_DWD = "enable_dwd"
 CONF_ENABLE_MS = "enable_meteoswiss"
 CONF_ENABLE_EPIN = "enable_epin"
+CONF_ENABLE_GOOGLE = "enable_google"
+# Distinct form field so it doesn't collide with polleninformation's api_key.
+CONF_GOOGLE_API_KEY = "google_api_key"
 
 
 def _station_label(stations: dict[str, tuple[str, float, float]], code: str) -> str:
@@ -194,6 +199,20 @@ async def _async_probe_epin(
     return None, source.station
 
 
+async def _async_probe_google(
+    hass, latitude: float, longitude: float, api_key: str, allergens: list[str]
+) -> str | None:
+    """Return a config-flow error key if Google can't be used."""
+    source = GoogleSource(latitude, longitude, api_key, allergens)
+    try:
+        await source.async_fetch(session=async_get_clientsession(hass))
+    except SourceAuthError:
+        return "invalid_api_key"
+    except SourceError:
+        return "cannot_connect"
+    return None
+
+
 async def _async_probe_coverage(
     hass, latitude: float, longitude: float, allergens: list[str]
 ) -> str | None:
@@ -295,6 +314,7 @@ class PollenWatchOptionsFlow(OptionsFlow):
         dwd_cfg = sources.get(SOURCE_DWD, {})
         ms_cfg = sources.get(SOURCE_METEOSWISS, {})
         epin_cfg = sources.get(SOURCE_EPIN, {})
+        google_cfg = sources.get(SOURCE_GOOGLE, {})
 
         if user_input is not None:
             allergens = user_input[CONF_ALLERGENS]
@@ -305,6 +325,8 @@ class PollenWatchOptionsFlow(OptionsFlow):
             region_raw = user_input.get(CONF_REGION)
             enable_ms = user_input.get(CONF_ENABLE_MS, False)
             enable_epin = user_input.get(CONF_ENABLE_EPIN, False)
+            enable_google = user_input.get(CONF_ENABLE_GOOGLE, False)
+            google_api_key = user_input.get(CONF_GOOGLE_API_KEY, "")
             # Resolved nearest-station codes (carried over unless re-probed).
             ms_station = ms_cfg.get(CONF_STATION, "")
             epin_station = epin_cfg.get(CONF_STATION, "")
@@ -345,6 +367,15 @@ class PollenWatchOptionsFlow(OptionsFlow):
                 )
                 if error:
                     errors["base"] = error
+            if enable_google:
+                if not google_api_key:
+                    errors[CONF_GOOGLE_API_KEY] = "api_key_required"
+                elif not errors:
+                    error = await _async_probe_google(
+                        self.hass, latitude, longitude, google_api_key, allergens
+                    )
+                    if error:
+                        errors["base"] = error
 
             if not errors:
                 sensitivity = {
@@ -377,6 +408,10 @@ class PollenWatchOptionsFlow(OptionsFlow):
                             SOURCE_EPIN: {
                                 CONF_ENABLED: enable_epin,
                                 CONF_STATION: epin_station if enable_epin else "",
+                            },
+                            SOURCE_GOOGLE: {
+                                CONF_ENABLED: enable_google,
+                                CONF_API_KEY: google_api_key if enable_google else "",
                             },
                         },
                     }
@@ -423,6 +458,15 @@ class PollenWatchOptionsFlow(OptionsFlow):
             vol.Required(
                 CONF_ENABLE_EPIN, default=epin_cfg.get(CONF_ENABLED, False)
             ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_ENABLE_GOOGLE, default=google_cfg.get(CONF_ENABLED, False)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_GOOGLE_API_KEY,
+                description={
+                    "suggested_value": google_cfg.get(CONF_API_KEY) or None
+                },
+            ): _API_KEY_SELECTOR,
         }
         # Personal sensitivity multipliers (one per species).
         for species in ALLERGENS:

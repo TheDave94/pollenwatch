@@ -44,7 +44,9 @@
           "enable_dwd": "DWD Pollenflug aktivieren (Deutschland, dritte Quelle)",
           "region": "DWD-Region",
           "enable_meteoswiss": "MeteoSwiss aktivieren (Schweiz)",
-          "enable_epin": "ePIN aktivieren (Bayern)"
+          "enable_epin": "ePIN aktivieren (Bayern)",
+          "enable_google": "Google Pollen API aktivieren (global)",
+          "google_api_key": "Google Pollen API-Schlüssel"
         },
         "data_description": {
           "update_interval": "Wie oft Open-Meteo abgefragt wird. Mindestens 60 Minuten, um die kostenlose öffentliche API zu schonen.",
@@ -54,15 +56,17 @@
           "enable_dwd": "Fügt die Vorhersage des Deutschen Wetterdienstes hinzu. Nur Deutschland; kein API-Schlüssel nötig.",
           "region": "Deine DWD-Vorhersageregion innerhalb Deutschlands.",
           "enable_meteoswiss": "Fügt das automatische Messnetz von MeteoSwiss hinzu. Nur Schweiz; kein API-Schlüssel. Die nächste Messstation wird automatisch gewählt — aktuell: {ms_station}.",
-          "enable_epin": "Fügt das automatische ePIN-Messnetz hinzu. Nur Bayern; kein API-Schlüssel. Die nächste Messstation wird automatisch gewählt — aktuell: {epin_station}."
+          "enable_epin": "Fügt das automatische ePIN-Messnetz hinzu. Nur Bayern; kein API-Schlüssel. Die nächste Messstation wird automatisch gewählt — aktuell: {epin_station}.",
+          "enable_google": "Fügt die Google Pollen API hinzu: globale Abdeckung, 5-Tage-Vorhersage, alle sechs Allergene (inkl. Olive — die einzige Quelle damit). Erfordert ein Google-Cloud-Projekt mit aktivierter Pollen-API UND ein hinterlegtes Abrechnungskonto. Es gibt ein kostenloses Kontingent (~5.000 Anfragen/Monat), aber Google verlangt eine hinterlegte Zahlungsmethode — also aufwändiger als die kostenlosen Schlüssel der anderen Quellen.",
+          "google_api_key": "Wird in Home Assistant verschlüsselt gespeichert; nie im Klartext auf die Festplatte geschrieben. Nur für den Konsens: Googles Lizenz verbietet das Speichern der Vorhersagen, daher wird sie nicht für die Perzentil-Basislinie verwendet."
         }
       }
     },
     "error": {
       "no_allergens": "Wähle mindestens ein Allergen aus.",
       "country_required": "Wähle ein Land, um polleninformation zu aktivieren.",
-      "api_key_required": "Gib deinen polleninformation API-Schlüssel ein.",
-      "invalid_api_key": "polleninformation hat den API-Schlüssel abgelehnt. Bitte prüfen und erneut versuchen.",
+      "api_key_required": "Gib den API-Schlüssel für die aktivierte Quelle ein.",
+      "invalid_api_key": "Die Quelle hat den API-Schlüssel abgelehnt. Bitte prüfen und erneut versuchen.",
       "out_of_coverage": "Die gewählte Quelle hat keine Pollendaten für diesen Standort.",
       "cannot_connect": "Die gewählte Pollenquelle konnte nicht erreicht werden. Prüfe deine Verbindung und versuche es erneut.",
       "region_required": "Wähle eine DWD-Region, um DWD zu aktivieren."

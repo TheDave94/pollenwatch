@@ -37,6 +37,35 @@ the provider's 5-band index onto it is our editorial choice (labelled here for
 honesty, like the support-policy HA floor). The provider does not publish a
 grains/m³↔index table to derive it rigorously.
 
+### Google UPI 0–5 → 3-level collapse (OPERATIONAL ALIGNMENT)
+
+Google reports the **Universal Pollen Index (UPI)**, a six-band index. We map it
+**by the documented category meaning** (`google_collapse`):
+
+| UPI | Google category | Documented meaning | level |
+| --- | --- | --- | --- |
+| 0 | None | "Pollen levels are very low and are not likely to trigger allergic reactions" | 0 |
+| 1 | Very Low | "People with very high allergy to pollen are likely to experience symptoms" | 1 |
+| 2 | Low | "People with high allergy to pollen are likely to experience symptoms" | 1 |
+| 3 | Moderate | "People with allergy to pollen are likely to experience symptoms" | 1 |
+| 4 | High | (elevated tier — less-allergic people react) | 2 |
+| 5 | Very High | (top tier — most/all allergic people react) | 2 |
+
+i.e. `0→0, 1–3→1, 4–5→2`. **Why Moderate (3) → 1, not 2:** Google's own naming
+reserves *High*/*Very High* for the elevated tier and documents *Moderate* as
+mid. The health-conservative bias belongs **once** in consensus take-the-higher,
+not in the per-source collapse — inflating Moderate→2 would apply that bias twice
+and systematically over-warn. Keeping the collapse faithful to the source also
+keeps Google parallel to the polleninformation top-two→2 collapse. Like the
+others, this is an **operational alignment, not a sourced equivalence**: the
+3-level scale is EAACI-sourced; aligning Google's six bands onto it is editorial.
+All six **category names** are documented (Google RPC reference). The 0–3
+**descriptions** above are quoted verbatim from Google's docs; the verbatim
+`indexDescription` strings for **High (4)** and **Very High (5)** will be
+recorded here from the live API on the first on-instance validation (Graz is
+covered — see HA_COMPATIBILITY / release notes). The mapping keys on the
+documented category, not the prose, so it does not depend on that capture.
+
 ## Threshold finding (research 2026-05-29)
 
 Goal: authoritative, published, **per-species** grains/m³ → level thresholds.

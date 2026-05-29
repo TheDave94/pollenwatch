@@ -80,6 +80,30 @@ def dwd_collapse(value: str | None) -> int | None:
     return _DWD_TO_LEVEL.get(str(value).strip())
 
 
+# Google Universal Pollen Index (UPI) 0–5 -> 3-level (operational alignment, by
+# meaning; see ANALYTICS.md). "None"(0) -> 0 (below onset); "Very Low"/"Low"/
+# "Moderate"(1–3) -> 1 (in season); "High"/"Very High"(4–5) -> 2 (peak). Moderate
+# stays at 1 because Google reserves High/Very High for the elevated tier — the
+# health-conservative bias lives once in consensus take-the-higher, not here.
+# Top-two -> 2 mirrors the polleninformation 0–4 collapse.
+_UPI_TO_LEVEL: dict[int, int] = {0: 0, 1: 1, 2: 1, 3: 1, 4: 2, 5: 2}
+
+
+def google_collapse(value: object) -> int | None:
+    """Collapse a Google UPI value (0–5) to the 0/1/2 level.
+
+    Returns ``None`` (omit the source for this species) for missing or
+    unexpected values — never crash, never silently treat as 0.
+    """
+    if value is None:
+        return None
+    try:
+        upi = int(value)
+    except (ValueError, TypeError):
+        return None
+    return _UPI_TO_LEVEL.get(upi)
+
+
 def daily_peaks(
     times: list[str], values: list[float | None]
 ) -> list[tuple[str, float]]:

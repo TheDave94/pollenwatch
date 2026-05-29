@@ -9,16 +9,18 @@ ecosystem already has ~10 pollen integrations that each wrap a *single*
 provider; PollenWatch instead **combines independent sources** and adds a
 **cross-source analytics layer** on top. That combination is the point.
 
-> **Status: release candidate (v1.1.0-rc1) — feature-complete, validating.**
+> **Status: release candidate (v1.2.0-rc1) — feature-complete, validating.**
 > Not yet declared stable. A few things to know before you rely on it:
 > - **DWD, MeteoSwiss and ePIN have never run in production.** Their data paths
 >   are validated against the live feeds and mocked tests, but the maintainer is
 >   in Austria — outside all three coverage areas (Germany / Switzerland /
 >   Bavaria) — so a user enabling one of them is its first real-world run.
->   Please [open an issue](https://github.com/TheDave94/pollenwatch/issues) if
->   anything looks off.
+>   (**Google**, by contrast, covers Austria, so it *is* validatable on the
+>   maintainer's instance.) Please
+>   [open an issue](https://github.com/TheDave94/pollenwatch/issues) if anything
+>   looks off.
 > - **Consensus has a known lone-higher edge** ([#1](https://github.com/TheDave94/pollenwatch/issues/1)):
->   with ≥3 sources (now up to 5), a single higher reading can pull the consensus
+>   with ≥3 sources (now up to 6), a single higher reading can pull the consensus
 >   up without flagging divergence. Documented and deferred for a redesign.
 >
 > Minimum Home Assistant **2024.11.0** (see
@@ -29,7 +31,7 @@ provider; PollenWatch instead **combines independent sources** and adds a
 Each source is optional except Open-Meteo, and **what you get depends on your
 location**: outside Germany you get no DWD; outside Switzerland no MeteoSwiss;
 outside Bavaria no ePIN; outside the 13 polleninformation countries you get only
-Open-Meteo (which covers all of Europe).
+Open-Meteo (all of Europe) and Google (global, if enabled).
 
 | Source | Coverage | API key | Notes |
 | --- | --- | --- | --- |
@@ -38,19 +40,27 @@ Open-Meteo (which covers all of Europe).
 | **DWD Pollenflug** | **Germany only** | none | Optional. Daily 7-point regional index **forecast**; you pick your DWD region. |
 | **MeteoSwiss** | **Switzerland only** | none | Optional, **observation-only**. Hourly grains/m³; nearest of 19 automatic stations auto-picked. Covers alder/birch/grass. |
 | **ePIN (Bavaria)** | **Bavaria only** | none | Optional, **observation-only**. 3-hourly grains/m³; nearest of 8 automatic stations auto-picked. No olive. |
+| **Google Pollen** | **Global** | **billing-gated key**² | Optional, **consensus-only**³. UPI 0–5 index, 5-day **forecast**, all 6 allergens (**only source with olive**). |
 
 ¹ AT, CH, DE, ES, FR, GB, IT, LV, LT, PL, SE, TR, UA.
+² Requires a Google Cloud project with the Pollen API enabled **and a billing
+account** (free tier ~5,000 req/month, but a payment method must be on file) —
+more involved than the other sources' free keys.
+³ **Consensus-only:** Google's Maps Platform terms forbid caching/storing
+forecast results, so Google feeds consensus/divergence and gets a raw sensor +
+forecast + personal_score, but is **never** baselined into recent_percentile.
 
-**Forecast vs observation:** Open-Meteo, polleninformation and DWD provide a
-*forward forecast* (today + coming days). MeteoSwiss and ePIN are *observation
-networks* — they report measured concentrations up to the latest reading, with
-**no tomorrow value**, so their sensors show the current/most-recent reading and
-today's running peak rather than a multi-day outlook.
+**Forecast vs observation:** Open-Meteo, polleninformation, DWD and Google
+provide a *forward forecast* (today + coming days). MeteoSwiss and ePIN are
+*observation networks* — they report measured concentrations up to the latest
+reading, with **no tomorrow value**, so their sensors show the current/most-recent
+reading and today's running peak rather than a multi-day outlook.
 
 PollenWatch tracks six canonical allergens — **alder, birch, grass, mugwort,
 olive, ragweed**. Not every source covers every one (DWD and ePIN have no olive;
-MeteoSwiss measures only alder, birch and grass); a source only produces sensors
-for the allergens it actually reports at your location.
+MeteoSwiss measures only alder, birch and grass; **Google is the only source that
+covers olive**); a source only produces sensors for the allergens it actually
+reports at your location.
 
 ## Analytics
 
@@ -61,7 +71,8 @@ On top of the raw per-source sensors:
   compute it on day one from their own history; polleninformation, DWD and ePIN
   baseline on Home Assistant recorder history and honestly report "insufficient
   history" until ~2 weeks accrue (and "off_season" when the whole window is
-  zero).
+  zero). **Google is excluded** — its licence forbids storing forecasts, so it
+  gets no percentile (it still feeds consensus and gets a raw sensor).
 - **personal_score** — a source's raw value × your per-species sensitivity
   multiplier (0.0–2.0), for personal-threshold automations.
 - **consensus + divergence** *(cross-source)* — for any allergen ≥2 sources
@@ -108,6 +119,11 @@ optional sources:
   automatically (shown in the option description and as a `station` attribute on
   the sensors). Enabling either outside its country/region is rejected as
   out-of-coverage.
+- **Google Pollen** (global) — toggle on and paste an API key. **Read the option
+  text first:** this needs a Google Cloud project with the Pollen API enabled
+  **and a billing account attached** (there is a free tier, but Google requires a
+  payment method on file) — it is more involved than the other keys. Stored
+  encrypted in HA. Google is consensus-only (no recent_percentile).
 
 ## Entities
 
@@ -144,6 +160,8 @@ PollenWatch's data carries these required attributions:
 > Source: MeteoSwiss
 
 > Source: ePIN, Bayerisches Landesamt für Gesundheit und Lebensmittelsicherheit (LGL)
+
+> Source: Includes pollen data from Google
 
 ## License
 

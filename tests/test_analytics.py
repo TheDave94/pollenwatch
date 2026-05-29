@@ -11,6 +11,7 @@ from custom_components.pollenwatch.analytics import (
     consensus,
     daily_peaks,
     dwd_collapse,
+    google_collapse,
     percentile_rank,
     recent_percentile_from_series,
 )
@@ -213,6 +214,24 @@ def test_dwd_collapse_scale(value, level):
 def test_dwd_collapse_unexpected_omits(value):
     # no-data / missing / unexpected -> None (omit), never crash, never ->0
     assert dwd_collapse(value) is None
+
+
+# --- Google UPI collapse ---------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("upi", "level"),
+    [(0, 0), (1, 1), (2, 1), (3, 1), (4, 2), (5, 2)],
+)
+def test_google_collapse_scale(upi, level):
+    # None->0; Very Low/Low/Moderate(1-3)->1; High/Very High(4-5)->2.
+    assert google_collapse(upi) == level
+
+
+@pytest.mark.parametrize("value", [None, -1, 6, 99, "x"])
+def test_google_collapse_unexpected_omits(value):
+    # Out-of-range / non-int / missing -> None, never crash, never ->0.
+    assert google_collapse(value) is None
 
 
 # --- 3-source consensus (new: never exercised before DWD) ------------------
