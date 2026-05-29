@@ -315,6 +315,73 @@ async def test_personal_score_applies_multiplier(hass: HomeAssistant) -> None:
     assert birch.attributes["multiplier"] == 1.0
 
 
+def _om_levels_result():
+    # grass 50 -> level 2 (>= peak 50); birch 5 -> level 0 (< onset 10).
+    payload = {
+        "latitude": 47.1, "longitude": 15.4, "timezone": "Europe/Vienna",
+        "elevation": 363.0,
+        "hourly_units": {"grass_pollen": "grains/m³", "birch_pollen": "grains/m³"},
+        "current": {"time": "2026-05-29T12:00", "grass_pollen": 50.0, "birch_pollen": 5.0},
+        "hourly": {"time": ["2026-05-29T12:00"], "grass_pollen": [50.0], "birch_pollen": [5.0]},
+    }
+    return OpenMeteoSource(47.07, 15.44, ["grass", "birch"]).parse(payload)
+
+
+def _pi_levels_result():
+    # grass index 3 -> level 2; birch index 4 -> level 2.
+    payload = {
+        "contamination": [
+            {"poll_id": 5, "poll_title": "grasses", "contamination_1": 3,
+             "contamination_2": 3, "contamination_3": 3, "contamination_4": 3},
+            {"poll_id": 2, "poll_title": "birch", "contamination_1": 4,
+             "contamination_2": 4, "contamination_3": 4, "contamination_4": 4},
+        ],
+        "allergyrisk": {}, "allergyrisk_hourly": {},
+    }
+    return PolleninformationSource(47.07, 15.44, "AT", "k", ["grass", "birch"]).parse(payload)
+
+
+async def test_consensus_and_divergence(hass: HomeAssistant) -> None:
+    entry = _two_source_entry()  # grass + birch, both sources
+    entry.add_to_hass(hass)
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_om_levels_result())),
+        patch(_PI_FETCH, new=AsyncMock(return_value=_pi_levels_result())),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # grass: OM level 2, pi level 2 -> agree "high", not diverged.
+    grass = hass.states.get("sensor.pollenwatch_consensus_grass")
+    assert grass is not None
+    assert grass.state == "high"
+    assert grass.attributes["level"] == 2
+    assert grass.attributes["source_levels"] == {"open_meteo": 2, "polleninformation": 2}
+    assert hass.states.get("binary_sensor.pollenwatch_divergence_grass").state == "off"
+
+    # birch: OM level 0, pi level 2 -> differ by 2 -> "mixed", diverged.
+    birch = hass.states.get("sensor.pollenwatch_consensus_birch")
+    assert birch.state == "mixed"
+    assert birch.attributes["level"] is None
+    assert hass.states.get("binary_sensor.pollenwatch_divergence_birch").state == "on"
+
+
+async def test_no_consensus_with_single_source(hass: HomeAssistant) -> None:
+    entry = _entry()  # polleninformation disabled -> only Open-Meteo
+    entry.add_to_hass(hass)
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # Consensus needs >= 2 sources: no consensus/divergence entities at all.
+    assert hass.states.get("sensor.pollenwatch_consensus_grass") is None
+    assert hass.states.get("binary_sensor.pollenwatch_divergence_grass") is None
+
+
 async def test_unload_entry(hass: HomeAssistant) -> None:
     entry = _entry()
     entry.add_to_hass(hass)

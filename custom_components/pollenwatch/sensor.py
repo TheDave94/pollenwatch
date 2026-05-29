@@ -10,14 +10,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .analytics import daily_peaks
+from .analytics import CONSENSUS_OPTIONS, daily_peaks
 from .const import (
     ALLERGEN_NAMES,
     ATTR_FORECAST,
@@ -43,11 +47,16 @@ from .coordinator import (
     PollenWatchConfigEntry,
     PollenWatchSourceCoordinator,
     _entry_option,
+    analytics_device_info,
+    multi_source_species,
 )
 
 # Extra-state-attribute keys for the recent_percentile sensor.
 ATTR_HISTORY_STATUS = "history_status"
 ATTR_DAYS_OF_HISTORY = "days_of_history"
+# ... and the consensus sensor.
+ATTR_LEVEL = "level"
+ATTR_SOURCE_LEVELS = "source_levels"
 
 
 def _source_device_info(entry: PollenWatchConfigEntry, source_key: str) -> DeviceInfo:
@@ -99,6 +108,12 @@ async def async_setup_entry(
                 entities.append(
                     RecentPercentileSensor(analytics, entry, source_key, allergen)
                 )
+
+    # Cross-source consensus: one per species that >= 2 sources currently cover.
+    if analytics is not None:
+        for species in multi_source_species(runtime.coordinators):
+            entities.append(ConsensusSensor(analytics, entry, species))
+
     async_add_entities(entities)
 
 
@@ -252,6 +267,65 @@ class PersonalScoreSensor(
         return {ATTR_MULTIPLIER: self._multiplier}
 
 
+class ConsensusSensor(
+    CoordinatorEntity[PollenWatchAnalyticsCoordinator], SensorEntity
+):
+    """Cross-source consensus level for one species (none/low/high/mixed).
+
+    Categorical (ENUM) so it can report "mixed" when sources disagree by >1
+    level. The numeric agreed level and the per-source levels are attributes.
+    Unavailable when fewer than two sources currently cover the species.
+    """
+
+    # Explicit name (not has_entity_name) so the entity ID is the documented
+    # cross-source contract sensor.pollenwatch_consensus_<species>, rather than
+    # being prefixed by the "PollenWatch Analytics" device slug.
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = CONSENSUS_OPTIONS
+    _attr_icon = "mdi:scale-balance"
+
+    def __init__(
+        self,
+        coordinator: PollenWatchAnalyticsCoordinator,
+        entry: PollenWatchConfigEntry,
+        species: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._species = species
+        self._attr_unique_id = f"{entry.entry_id}_consensus_{species}"
+        self._attr_name = f"PollenWatch Consensus {ALLERGEN_NAMES.get(species, species)}"
+        self._attr_device_info = analytics_device_info(entry)
+
+    def _result(self):
+        return self.coordinator.data.consensus.get(self._species)
+
+    @property
+    def available(self) -> bool:
+        # Consensus needs >= 2 sources reporting now; otherwise unavailable
+        # rather than a single source masquerading as consensus.
+        result = self._result()
+        return (
+            super().available
+            and result is not None
+            and len(result.source_levels) >= 2
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        result = self._result()
+        return result.state if result else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        result = self._result()
+        if result is None:
+            return None
+        return {
+            ATTR_LEVEL: result.level,
+            ATTR_SOURCE_LEVELS: result.source_levels,
+        }
+
+
 class RecentPercentileSensor(
     CoordinatorEntity[PollenWatchAnalyticsCoordinator], SensorEntity
 ):
@@ -288,14 +362,14 @@ class RecentPercentileSensor(
 
     @property
     def native_value(self) -> float | None:
-        result = self.coordinator.data.get(self._key)
+        result = self.coordinator.data.percentiles.get(self._key)
         if result is None or result.status != "ok":
             return None
         return result.percentile
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        result = self.coordinator.data.get(self._key)
+        result = self.coordinator.data.percentiles.get(self._key)
         if result is None:
             return None
         return {

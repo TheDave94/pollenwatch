@@ -8,6 +8,7 @@ from custom_components.pollenwatch.analytics import (
     bucket_level,
     collapse_index,
     compute_recent_percentile,
+    consensus,
     daily_peaks,
     percentile_rank,
     recent_percentile_from_series,
@@ -144,3 +145,49 @@ def test_recent_percentile_from_series_trims_window():
         times, values, "2026-01-10", window_days=5, min_days=3
     )
     assert res.days == 5  # only the trailing 5 days kept
+
+
+# --- consensus -------------------------------------------------------------
+
+
+def test_consensus_equal_levels():
+    res = consensus({"open_meteo": 0, "polleninformation": 0})
+    assert res.state == "none"
+    assert res.level == 0
+    assert res.diverged is False
+
+
+def test_consensus_equal_high():
+    res = consensus({"open_meteo": 2, "polleninformation": 2})
+    assert res.state == "high"
+    assert res.level == 2
+    assert res.diverged is False
+
+
+def test_consensus_adjacent_takes_higher():
+    # 0 & 1 -> low (the higher); 1 & 2 -> high (the higher).
+    assert consensus({"a": 0, "b": 1}).state == "low"
+    assert consensus({"a": 0, "b": 1}).level == 1
+    assert consensus({"a": 1, "b": 2}).state == "high"
+    assert consensus({"a": 1, "b": 2}).level == 2
+
+
+def test_consensus_two_apart_is_mixed():
+    res = consensus({"open_meteo": 0, "polleninformation": 2})
+    assert res.state == "mixed"
+    assert res.level is None
+    assert res.diverged is True
+
+
+def test_consensus_single_source_omitted():
+    res = consensus({"open_meteo": 2})
+    assert res.state is None
+    assert res.level is None
+    assert res.diverged is False
+    assert res.source_levels == {"open_meteo": 2}
+
+
+def test_consensus_reports_source_levels():
+    res = consensus({"open_meteo": 2, "polleninformation": 1})
+    assert res.source_levels == {"open_meteo": 2, "polleninformation": 1}
+    assert res.state == "high"  # adjacent -> higher

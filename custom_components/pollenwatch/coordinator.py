@@ -17,17 +17,23 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
 from .analytics import (
     PERCENTILE_WINDOW_DAYS,
+    ConsensusResult,
     PercentileResult,
+    bucket_level,
+    collapse_index,
     compute_recent_percentile,
+    consensus,
     daily_peaks,
     recent_percentile_from_series,
 )
 from .const import (
+    ANALYTICS_DEVICE_NAME,
     CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
@@ -157,18 +163,26 @@ def build_coordinators(
     return coordinators
 
 
-# Result key: (source_key, species) -> PercentileResult
-type PercentileMap = dict[tuple[str, str], PercentileResult]
+@dataclass
+class AnalyticsData:
+    """Output of the analytics coordinator."""
+
+    # recent_percentile per (source_key, species)
+    percentiles: dict[tuple[str, str], PercentileResult] = field(default_factory=dict)
+    # cross-source consensus per species
+    consensus: dict[str, ConsensusResult] = field(default_factory=dict)
 
 
-class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator["PercentileMap"]):
+class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator[AnalyticsData]):
     """Computes derived analytics from the source coordinators.
 
-    Milestone 3b: recent_percentile per (source, species). consensus/divergence
-    arrive in later steps. Sources with their own history (Open-Meteo's 92-day
-    backfill) compute purely; sources without one (polleninformation) baseline on
-    HA recorder history of their raw sensor, emitting "insufficient_history" until
-    enough days accrue.
+    Milestone 3b: recent_percentile per (source, species) and cross-source
+    consensus per species (with its divergence flag). Sources with their own
+    history (Open-Meteo's 92-day backfill) compute the percentile purely; sources
+    without one (polleninformation) baseline on HA recorder history, emitting
+    "insufficient_history" until enough days accrue. Consensus compares each
+    source on the common 0/1/2 level scale (Open-Meteo bucketed, the index
+    collapsed).
     """
 
     config_entry: PollenWatchConfigEntry
@@ -188,23 +202,34 @@ class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator["PercentileMap"]):
         )
         self._sources = sources
 
-    async def _async_update_data(self) -> PercentileMap:
+    def _source_level(self, source_key: str, species: str, value: float) -> int:
+        if source_key == SOURCE_OPEN_METEO:
+            return bucket_level(species, value)
+        return collapse_index(value)  # index-scale sources (polleninformation)
+
+    async def _async_update_data(self) -> AnalyticsData:
         today = dt_util.now().date().isoformat()
-        out: PercentileMap = {}
+        percentiles: dict[tuple[str, str], PercentileResult] = {}
+        levels: dict[str, dict[str, int]] = {}
         for source_key, coordinator in self._sources.items():
             data = coordinator.data
             if data is None:
                 continue
             for species, series in data.allergens.items():
                 if source_key == SOURCE_OPEN_METEO:
-                    out[(source_key, species)] = recent_percentile_from_series(
+                    percentiles[(source_key, species)] = recent_percentile_from_series(
                         data.times, series.values, today
                     )
                 else:
-                    out[(source_key, species)] = await self._recorder_percentile(
+                    percentiles[(source_key, species)] = await self._recorder_percentile(
                         source_key, species, today
                     )
-        return out
+                if series.current is not None:
+                    levels.setdefault(species, {})[source_key] = self._source_level(
+                        source_key, species, series.current
+                    )
+        consensus_map = {sp: consensus(src) for sp, src in levels.items()}
+        return AnalyticsData(percentiles=percentiles, consensus=consensus_map)
 
     async def _recorder_percentile(
         self, source_key: str, species: str, today: str
@@ -245,3 +270,27 @@ class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator["PercentileMap"]):
             times.append(dt_util.as_local(state.last_changed).isoformat())
             values.append(value)
         return daily_peaks(times, values)
+
+
+def analytics_device_info(entry: PollenWatchConfigEntry) -> DeviceInfo:
+    """Device for the cross-source analytics entities (consensus, divergence)."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_analytics")},
+        name=ANALYTICS_DEVICE_NAME,
+        manufacturer="PollenWatch",
+        model="Cross-source analytics",
+        entry_type=DeviceEntryType.SERVICE,
+    )
+
+
+def multi_source_species(
+    coordinators: dict[str, PollenWatchSourceCoordinator],
+) -> list[str]:
+    """Species currently covered by >= 2 sources (consensus needs two)."""
+    counts: dict[str, int] = {}
+    for coordinator in coordinators.values():
+        if coordinator.data is None:
+            continue
+        for species in coordinator.data.allergens:
+            counts[species] = counts.get(species, 0) + 1
+    return sorted(species for species, n in counts.items() if n >= 2)

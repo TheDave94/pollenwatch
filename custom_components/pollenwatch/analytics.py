@@ -53,7 +53,7 @@ def bucket_level(species: str, grains: float) -> int:
 
 def collapse_index(index: int) -> int:
     """Collapse the polleninformation 0–4 index to the 0/1/2 level."""
-    return _INDEX_TO_LEVEL[int(index)]
+    return _INDEX_TO_LEVEL[max(0, min(4, int(index)))]
 
 
 def daily_peaks(
@@ -130,6 +130,52 @@ def compute_recent_percentile(
     return PercentileResult(
         percentile_rank(today_peak, distribution), len(by_date), "ok"
     )
+
+
+# --- consensus / divergence (cross-source) --------------------------------
+
+# Categorical consensus vocabulary. Levels 0/1/2 map to none/low/high; "mixed"
+# is genuine disagreement (sources differ by >1 level) — a number can't hold it.
+# (Level 1 is "in season, below peak"; "low" is the user-facing label — see
+# ANALYTICS.md. "moderate" was considered.)
+CONSENSUS_NONE = "none"
+CONSENSUS_LOW = "low"
+CONSENSUS_HIGH = "high"
+CONSENSUS_MIXED = "mixed"
+CONSENSUS_OPTIONS = [CONSENSUS_NONE, CONSENSUS_LOW, CONSENSUS_HIGH, CONSENSUS_MIXED]
+_LEVEL_TO_CONSENSUS = {0: CONSENSUS_NONE, 1: CONSENSUS_LOW, 2: CONSENSUS_HIGH}
+
+
+@dataclass(slots=True)
+class ConsensusResult:
+    """Cross-source consensus for one species.
+
+    ``state`` is None when fewer than two sources cover the species (consensus
+    needs ≥2 — the metric never reports one source talking to itself).
+    """
+
+    state: str | None  # one of CONSENSUS_OPTIONS, or None if < 2 sources
+    level: int | None  # 0/1/2 when agreed; None for mixed or < 2 sources
+    diverged: bool  # True only in the "mixed" case (levels differ by > 1)
+    source_levels: dict[str, int]  # contributing per-source levels
+
+
+def consensus(levels: dict[str, int]) -> ConsensusResult:
+    """Combine per-source levels (0/1/2) into a consensus.
+
+    Equal weighting (v1.0). Tiebreak (deliberate, health-conservative — see
+    ANALYTICS.md): equal → that level; adjacent (differ by 1) → the **higher**
+    level; differ by >1 → "mixed". Fewer than two sources → state None
+    (omitted), so a single source never masquerades as consensus.
+    """
+    source_levels = dict(levels)
+    if len(source_levels) < 2:
+        return ConsensusResult(None, None, False, source_levels)
+    values = list(source_levels.values())
+    if max(values) - min(values) > 1:
+        return ConsensusResult(CONSENSUS_MIXED, None, True, source_levels)
+    level = max(values)  # take-the-higher on equal/adjacent
+    return ConsensusResult(_LEVEL_TO_CONSENSUS[level], level, False, source_levels)
 
 
 def recent_percentile_from_series(

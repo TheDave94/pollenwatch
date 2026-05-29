@@ -13,9 +13,12 @@ from .sources.base import ALLERGENS
 
 DOMAIN: Final = "pollenwatch"
 
-# Platforms set up per config entry. Kept as a plain string to avoid importing
-# homeassistant.const here; __init__ maps it onto the Platform enum.
-PLATFORMS: Final[list[str]] = ["sensor"]
+# Platforms set up per config entry. Kept as plain strings to avoid importing
+# homeassistant.const here; __init__ maps them onto the Platform enum.
+PLATFORMS: Final[list[str]] = ["sensor", "binary_sensor"]
+
+# Device holding the cross-source analytics entities (consensus, divergence).
+ANALYTICS_DEVICE_NAME: Final = "PollenWatch Analytics"
 
 # Attribution text required by the data providers. See README.
 ATTRIBUTION_CAMS: Final = (

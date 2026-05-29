@@ -109,3 +109,32 @@ gets its own); **not** cross-source.
   "mid-range"), and any trace would jerk it to ~90%. Keyed on the window max, not
   today — a zero *today* within a window that has signal is a genuine, informative
   low percentile and stays `ok`.
+
+## Consensus & divergence (cross-source)
+
+Both compare sources on the common **3-level** scale above (Open-Meteo bucketed,
+polleninformation index collapsed). They exist **only for species ≥2 sources
+cover in the current data** — a single source never masquerades as consensus
+(unavailable otherwise).
+
+**consensus** (categorical sensor; `none`/`low`/`high`/`mixed`, with the numeric
+`level` and per-source `source_levels` in attributes). Combining rule, equal
+weighting (v1.0, no station>model):
+
+| Source levels | consensus |
+| --- | --- |
+| equal | that level (`none`/`low`/`high`) |
+| **adjacent** (differ by 1) | **the higher level** |
+| differ by >1 (0 vs 2) | `mixed` |
+
+The **take-the-higher** rule for adjacent levels is a **deliberate,
+health-conservative choice** — round an allergy sufferer toward the more cautious
+reading, not away — **not** a statistical necessity.
+
+**divergence** (binary sensor, device_class problem) is the boolean companion to
+`mixed`: on when source levels differ by **>1**. The ">1" threshold is tunable
+(see REVIEW_QUEUE) once we observe how often it fires on real dual-source data.
+
+Entity IDs are the documented contract `sensor.pollenwatch_consensus_<species>`
+and `binary_sensor.pollenwatch_divergence_<species>` (explicit names, so the
+"PollenWatch Analytics" device slug isn't prefixed); both sit under that device.
