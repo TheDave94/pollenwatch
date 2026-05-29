@@ -54,9 +54,28 @@ not by accident:
 If a harness build that installs ~2024.11.x becomes available, add a CI matrix
 entry pinned there to catch floor regressions directly.
 
-## Future
+## Milestone 3a audit (2026-05-29) — floor unchanged at 2024.11.0
 
-Milestone 3 (multi-source + cross-source analytics) is expected to adopt the
-**HA 2026.5 per-source DataUpdateCoordinator pattern** (cf. UniFi PR 166806),
-which fits the multi-source architecture. Adopting it will raise this floor to
-2026.5; update this file and `hacs.json` at that point.
+3a added the per-source coordinator pattern, a multi-source runtime container,
+config-entry migration (v1 → v2), and `SourceAuthError`. **None of these raise
+the API floor:**
+
+| 3a change | API | Introduced |
+| --- | --- | --- |
+| `entry.runtime_data` holds a container of multiple coordinators | `runtime_data` | 2024.6 |
+| `async_migrate_entry` + `ConfigFlow.VERSION` | migration hooks | ≤ 2023.x |
+| Several `DataUpdateCoordinator`s per entry (the "per-source pattern") | DataUpdateCoordinator | ≤ 2023.x (structural convention, not a new API) |
+| `TextSelector(PASSWORD)` / `BooleanSelector` / `SelectSelector` | selectors | ≤ 2024.x |
+
+**Correction to the earlier "Future" note:** the HA 2026.5 "per-source
+DataUpdateCoordinator pattern" (UniFi PR 166806) is a *code-organisation
+convention*, **not a 2026.5-only API** — running several coordinators with typed
+`runtime_data` has worked since 2024.6. So adopting it does **not** technically
+gate the integration to 2026.5. The honest, audit-derived floor remains
+**2024.11.0**.
+
+If the maintainer wants to declare **2026.5.0** anyway, that is legitimate but it
+is a **support-policy** decision ("we only support current HA"), not an
+API-required floor — and it should be labelled as such here rather than as an
+audit result, and weighed against excluding users on 2024.11–2026.4 for no
+technical reason. Left at the honest 2024.11.0 pending that call.
