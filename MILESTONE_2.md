@@ -1,6 +1,8 @@
 # Milestone 2 — End-to-end Open-Meteo in Home Assistant
 
-> **Status:** approved 2026-05-29 — implementation in progress. Decisions in §5.
+> **Status:** complete 2026-05-29 — all items implemented, CI green. Decisions
+> in §5; card-naming findings in §7. Deployable to a test HA (not yet deployed
+> to the user's live HA, per kickoff discipline).
 
 ## 1. What this milestone means, concretely
 
