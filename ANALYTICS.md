@@ -143,5 +143,10 @@ registry). So the IDs are
 `sensor.pollenwatch_analytics_<species>_consensus` and
 `binary_sensor.pollenwatch_analytics_<species>_divergence`, **not** the originally
 intended `sensor.pollenwatch_consensus_<species>`. Getting the un-prefixed form
-would require dropping the Analytics device. Flagged in REVIEW_QUEUE for the
-maintainer.
+would require dropping the Analytics device. **Decided (2026-05-29): keep the
+Analytics device and accept the prefixed IDs** — the device grouping (a tidy,
+user-visible container for the cross-source metrics, distinct from the per-source
+devices) is worth more than a shorter ID, which only matters in
+automations/templates where length is irrelevant and the prefix is arguably
+clearer. Fresh installs register these IDs directly; the existing live instance
+was migrated via an entity-registry rename.
