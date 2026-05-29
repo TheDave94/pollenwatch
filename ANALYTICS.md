@@ -150,3 +150,38 @@ devices) is worth more than a shorter ID, which only matters in
 automations/templates where length is irrelevant and the prefix is arguably
 clearer. Fresh installs register these IDs directly; the existing live instance
 was migrated via an entity-registry rename.
+
+## DWD scale — probe findings & PROPOSED mapping (pending review)
+
+Probed `https://opendata.dwd.de/climate_environment/health/alerts/s31fg.json`
+(open, no key) on 2026-05-29. "Pollenflug-Gefahrenindex für Deutschland" —
+**Germany only**.
+
+- **Native scale:** a 7-point ordinal encoded as **strings**:
+  `"0","0-1","1","1-2","2","2-3","3"` (half-steps are hyphenated strings, not
+  floats), plus `"-1"` = no data (documented; absent from the current feed, but
+  the client must handle it). Legend semantics: 0 keine (none), 0-1 keine bis
+  geringe (none–low), 1 geringe (low), 1-2 geringe bis mittlere (low–moderate),
+  2 mittlere (moderate), 2-3 mittlere bis hohe (moderate–high), 3 hohe (high).
+- **Forecast horizon:** 3 days (today / tomorrow / dayafter_to).
+- **Coverage:** region-based — 12 regions (region_id 10…120) → ~26 partregions
+  (partregion_id). **No lat/lon in the feed** (point→region mapping is on us;
+  non-German location → out_of_coverage).
+- **Allergens (8):** Erle→alder, Birke→birch, Graeser→grass, Beifuss→mugwort,
+  Ambrosia→ragweed (5 of our 6); plus Esche/ash, Hasel/hazel, Roggen/rye (not
+  tracked). **No olive** (DWD covers 5/6 canonical).
+
+**PROPOSED DWD→3-level mapping (operational alignment, by MEANING — not a
+sourced equivalence; pending maintainer review):**
+
+| DWD value | meaning | level |
+| --- | --- | --- |
+| `0`, `0-1` | none / none–low | **0** |
+| `1`, `1-2`, `2` | low / low–moderate / moderate | **1** |
+| `2-3`, `3` | moderate–high / high | **2** |
+| `-1` | no data | (omit) |
+
+Anchored on meaning: our level 2 = "high", and DWD's own "high" is `3` (with
+`2-3` = moderate-to-high → rounds up, health-conservative); DWD's "moderate"
+(`2`) is mid, not high → level 1; "none"/"none-low" → level 0. A pure
+`dwd_collapse` function (heavily boundary-tested) lands once approved.
