@@ -117,6 +117,26 @@ def test_recent_percentile_from_series_hourly_to_daily():
     assert res.percentile == pytest.approx(100.0 * (15 + 0.5) / 16)
 
 
+def test_recent_percentile_off_season_when_window_all_zero():
+    # 15 days, every day zero (incl today) -> off_season, no number.
+    peaks = [(f"2026-01-{d:02d}", 0.0) for d in range(1, 16)]
+    res = compute_recent_percentile(peaks, "2026-01-15", min_days=14)
+    assert res.status == "off_season"
+    assert res.percentile is None
+    assert res.days == 15
+
+
+def test_recent_percentile_quiet_today_with_signal_window_is_low_not_off_season():
+    # Window has signal (days 1..14 nonzero); today is 0 -> genuinely low, ok.
+    peaks = [(f"2026-01-{d:02d}", float(d)) for d in range(1, 15)]
+    peaks.append(("2026-01-15", 0.0))  # today = 0
+    res = compute_recent_percentile(peaks, "2026-01-15", min_days=14)
+    assert res.status == "ok"
+    assert res.percentile is not None
+    assert res.percentile < 10  # at the bottom of a signal-bearing window
+    assert res.percentile != 50
+
+
 def test_recent_percentile_from_series_trims_window():
     times = [f"2026-01-{d:02d}T12:00" for d in range(1, 11)]
     values = [1.0] * 10

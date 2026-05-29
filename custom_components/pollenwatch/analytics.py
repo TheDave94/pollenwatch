@@ -94,7 +94,7 @@ class PercentileResult:
 
     percentile: float | None
     days: int
-    status: str  # "ok" | "insufficient_history" | "no_data"
+    status: str  # "ok" | "insufficient_history" | "off_season" | "no_data"
 
 
 def compute_recent_percentile(
@@ -107,7 +107,16 @@ def compute_recent_percentile(
 
     ``peaks`` is the daily-peak series already limited to the trailing window
     (``daily_peaks`` output, dates ≤ today). The distribution includes today.
-    Emits ``insufficient_history`` until ``min_days`` distinct days exist.
+
+    Statuses (state is a number only for ``ok``):
+    - ``no_data`` — today's value is missing from the window.
+    - ``insufficient_history`` — fewer than ``min_days`` distinct days.
+    - ``off_season`` — the **whole window is zero** (max == 0): a percentile
+      would be a misreadable 50% ("no signal", not "mid-range"), and any trace
+      would jerk it to ~90%. Note this is keyed on the window max, not today: a
+      zero *today* in a window that has signal is a genuine, informative low
+      percentile and stays ``ok``.
+    - ``ok`` — a real percentile.
     """
     by_date = dict(peaks)
     today_peak = by_date.get(today)
@@ -116,6 +125,8 @@ def compute_recent_percentile(
     if len(by_date) < min_days:
         return PercentileResult(None, len(by_date), "insufficient_history")
     distribution = list(by_date.values())
+    if max(distribution) == 0:
+        return PercentileResult(None, len(by_date), "off_season")
     return PercentileResult(
         percentile_rank(today_peak, distribution), len(by_date), "ok"
     )

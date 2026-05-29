@@ -102,3 +102,10 @@ gets its own); **not** cross-source.
   history of its own raw sensor. Until enough days accumulate (`MIN_PERCENTILE_DAYS`,
   ~14) it emits an honest **"insufficient history"** state, not a misleading
   number; it improves passively as data accrues.
+- **Statuses** (state is a number only for `ok`; otherwise unknown + a
+  `history_status` attribute): `ok`, `insufficient_history`, `no_data`, and
+  **`off_season`**. `off_season` fires when the **whole trailing window is zero**
+  (`max == 0`): a percentile there is a misreadable 50% ("no signal", not
+  "mid-range"), and any trace would jerk it to ~90%. Keyed on the window max, not
+  today — a zero *today* within a window that has signal is a genuine, informative
+  low percentile and stays `ok`.
