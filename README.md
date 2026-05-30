@@ -1,15 +1,20 @@
 # PollenWatch
 
+[![Release](https://img.shields.io/github/v/release/TheDave94/pollenwatch?include_prereleases&sort=semver&color=E8920C)](https://github.com/TheDave94/pollenwatch/releases)
 [![Validate](https://github.com/TheDave94/pollenwatch/actions/workflows/validate.yml/badge.svg)](https://github.com/TheDave94/pollenwatch/actions/workflows/validate.yml)
 [![Lint & Test](https://github.com/TheDave94/pollenwatch/actions/workflows/lint.yml/badge.svg)](https://github.com/TheDave94/pollenwatch/actions/workflows/lint.yml)
 [![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-2A3540.svg)](LICENSE)
+
+![PollenWatch — multi-source European pollen for Home Assistant](brand/assets/repo-banner.png)
 
 A multi-source European pollen aggregator for Home Assistant. The Home Assistant
 ecosystem already has ~10 pollen integrations that each wrap a *single*
 provider; PollenWatch instead **combines independent sources** and adds a
 **cross-source analytics layer** on top. That combination is the point.
 
-> **Status: release candidate (v1.2.0-rc1) — feature-complete, validating.**
+> [!NOTE]
+> **Status: release candidate (v1.2.0-rc2) — feature-complete, validating.**
 > Not yet declared stable. A few things to know before you rely on it:
 > - **DWD, MeteoSwiss and ePIN have never run in production.** Their data paths
 >   are validated against the live feeds and mocked tests, but the maintainer is
@@ -162,6 +167,12 @@ PollenWatch's data carries these required attributions:
 > Source: ePIN, Bayerisches Landesamt für Gesundheit und Lebensmittelsicherheit (LGL)
 
 > Source: Includes pollen data from Google
+
+## Brand & design
+
+Brand identity, design tokens, and the severity-gauge spec live in
+[`brand/`](brand/) — the design source-of-truth (icon, palette, type, gauge
+state recipes, banner + social-preview assets).
 
 ## License
 

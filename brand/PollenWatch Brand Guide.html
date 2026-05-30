@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PollenWatch — Brand Identity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --gold: #E8920C;
+    --gold-light: #F6D45E;
+    --ink: #2A3540;
+    --slate: #33414F;
+    --low: #3DAE5A;
+    --mod: #F2A516;
+    --high: #EC7A1C;
+    --vhigh: #E0492E;
+    --p-yellow: #F2B705;
+    --p-orange: #EC7A1C;
+    --p-red: #E0492E;
+    --p-pink: #D94F87;
+    --p-green: #7FB23E;
+    --paper: #FBF7F0;
+    --cloud: #FFFFFF;
+    --edge: #ECE4D6;
+    --muted: #7C8794;
+    --disp: "Bricolage Grotesque", sans-serif;
+    --text: "Hanken Grotesk", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--text);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 40px; }
+
+  /* ---- hero ---- */
+  .hero { padding: 96px 0 72px; border-bottom: 1px solid var(--edge); }
+  .hero-lockup { display: flex; align-items: center; gap: 28px; }
+  .hero-lockup .mark { width: 132px; height: 132px; flex: 0 0 auto; }
+  .wordmark { font-family: var(--disp); font-weight: 700; letter-spacing: -0.02em;
+    line-height: 1; color: var(--ink); }
+  .hero .wordmark { font-size: 76px; }
+  .hero .wordmark .w2 { color: var(--gold); }
+  .hero-tag { margin-top: 28px; font-size: 21px; color: var(--slate); max-width: 620px;
+    line-height: 1.5; }
+  .hero-tag b { color: var(--ink); font-weight: 600; }
+
+  .eyebrow { font-family: var(--text); font-size: 12px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin: 0 0 8px; }
+  section { padding: 72px 0; border-bottom: 1px solid var(--edge); }
+  h2 { font-family: var(--disp); font-weight: 600; font-size: 34px; letter-spacing: -0.015em;
+    margin: 0 0 8px; }
+  .lede { font-size: 17px; color: var(--slate); max-width: 640px; margin: 0 0 40px; }
+
+  /* ---- logo variants ---- */
+  .logo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .logo-card { border-radius: 18px; padding: 44px; display: flex; align-items: center;
+    justify-content: center; min-height: 200px; border: 1px solid var(--edge); position: relative; }
+  .logo-card .tag { position: absolute; top: 14px; left: 16px; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .logo-card.light { background: var(--cloud); }
+  .logo-card.paper { background: var(--paper); }
+  .logo-card.dark { background: #1B2027; }
+  .logo-card.gold { background: var(--gold); }
+  .logo-card.dark .tag, .logo-card.gold .tag { color: rgba(255,255,255,0.6); }
+  .lockup-h { display: flex; align-items: center; gap: 16px; }
+  .lockup-h .mark { width: 64px; height: 64px; }
+  .lockup-h .wordmark { font-size: 38px; }
+  .lockup-v { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .lockup-v .mark { width: 76px; height: 76px; }
+  .lockup-v .wordmark { font-size: 30px; }
+  .on-dark .wordmark { color: #fff; } .on-dark .wordmark .w2 { color: var(--gold-light); }
+  .on-gold .wordmark { color: #fff; } .on-gold .wordmark .w2 { color: var(--ink); }
+
+  /* ---- clearspace / sizes ---- */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .panel { background: var(--cloud); border: 1px solid var(--edge); border-radius: 18px; padding: 32px; }
+  .panel h3 { font-family: var(--disp); font-weight: 600; font-size: 17px; margin: 0 0 6px; }
+  .panel p { font-size: 14px; color: var(--muted); margin: 0 0 22px; }
+  .sizes { display: flex; align-items: flex-end; gap: 26px; flex-wrap: wrap; }
+  .sizes .s { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .sizes .s span { font-size: 11px; color: var(--muted); }
+  .clearbox { display: flex; justify-content: center; }
+  .clearframe { position: relative; padding: 36px; }
+  .clearframe::before { content: ""; position: absolute; inset: 0; border: 1.5px dashed #D8CFC0; border-radius: 12px; }
+  .clearframe .mark { width: 120px; height: 120px; display: block; }
+
+  /* ---- colors ---- */
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .sw { border-radius: 14px; overflow: hidden; border: 1px solid var(--edge); background: var(--cloud); }
+  .sw .chip { height: 88px; }
+  .sw .meta { padding: 12px 14px 14px; }
+  .sw .nm { font-weight: 600; font-size: 14px; }
+  .sw .hx { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+    text-transform: uppercase; }
+  .sub { font-family: var(--disp); font-weight:600; font-size: 14px; letter-spacing: 0.02em;
+    text-transform: uppercase; color: var(--slate); margin: 30px 0 14px; }
+  .petals-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .petals-row .pe { flex: 1 1 0; min-width: 120px; border-radius: 12px; border: 1px solid var(--edge);
+    overflow: hidden; background: var(--cloud); }
+  .petals-row .pe .chip { height: 56px; }
+  .petals-row .pe .meta { padding: 8px 12px 10px; }
+
+  /* ---- severity scale ---- */
+  .sev { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .sevcard { border-radius: 16px; border: 1px solid var(--edge); background: var(--cloud);
+    padding: 22px; }
+  .sevcard .dot { width: 18px; height: 18px; border-radius: 50%; margin-bottom: 14px; }
+  .sevcard .lv { font-family: var(--disp); font-weight: 600; font-size: 19px; }
+  .sevcard .rng { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .sevcard .desc { font-size: 13px; color: var(--slate); margin-top: 12px; line-height: 1.5; }
+  .pill-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px 8px 12px;
+    border-radius: 999px; font-weight: 600; font-size: 14px; color: #fff; }
+  .pill .pd { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.9); }
+
+  /* ---- typography ---- */
+  .type-row { display: flex; align-items: baseline; gap: 22px; padding: 18px 0;
+    border-bottom: 1px solid var(--edge); }
+  .type-row:last-child { border-bottom: 0; }
+  .type-row .label { width: 150px; flex: 0 0 auto; font-size: 12px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em; }
+  .type-row .spec { width: 130px; flex: 0 0 auto; font-size: 12px; color: var(--muted);
+    font-variant-numeric: tabular-nums; }
+  .glyphs { font-family: var(--disp); font-weight: 600; }
+
+  /* ---- HA context ---- */
+  .ha { display: grid; grid-template-columns: 300px 1fr; gap: 24px; align-items: stretch; }
+  .ha-side { background: #1B2027; border-radius: 18px; padding: 18px 0; }
+  .ha-side .item { display: flex; align-items: center; gap: 14px; padding: 11px 22px; color: #C2CAD2;
+    font-size: 14.5px; font-weight: 500; }
+  .ha-side .item.active { background: rgba(255,255,255,0.06); color: #fff;
+    box-shadow: inset 3px 0 0 var(--gold); }
+  .ha-side .ico { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; }
+  .ha-side .ico svg { width: 24px; height: 24px; }
+  .ha-side .gi { width: 22px; height: 22px; stroke: #9AA6B2; stroke-width: 2; fill: none; }
+  .ha-card { background: var(--cloud); border: 1px solid var(--edge); border-radius: 18px;
+    padding: 26px; display: flex; flex-direction: column; }
+  .ha-card .top { display: flex; align-items: center; gap: 14px; }
+  .ha-card .top .mark { width: 44px; height: 44px; }
+  .ha-card .top .ti { font-family: var(--disp); font-weight: 600; font-size: 18px; }
+  .ha-card .top .st { font-size: 13px; color: var(--muted); }
+  .gauge-big { margin: 18px auto 6px; width: 220px; }
+  .reading { text-align: center; }
+  .reading .num { font-family: var(--disp); font-weight: 700; font-size: 40px; line-height: 1; }
+  .reading .cap { font-size: 13px; color: var(--muted); letter-spacing: 0.04em;
+    text-transform: uppercase; margin-top: 6px; }
+
+  footer { padding: 50px 0 80px; color: var(--muted); font-size: 13px; }
+  .caveat { background: #FFF6E8; border: 1px solid #F2D9A8; border-radius: 14px; padding: 16px 20px;
+    font-size: 13.5px; color: #8A5A12; margin-top: 28px; }
+  .caveat b { color: #6E4710; }
+</style>
+</head>
+<body>
+
+<!-- reusable mark -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="pw-mark" viewBox="0 0 100 100">
+    <path d="M24.32 41.66 A27 27 0 0 1 37.95 25.84" stroke="#3DAE5A" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <path d="M40.1 24.88 A27 27 0 0 1 59.9 24.88" stroke="#F2A516" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <path d="M62.05 25.84 A27 27 0 0 1 75.68 41.66" stroke="#E0492E" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <g opacity="0.6">
+      <g>
+        <ellipse cx="50" cy="36" rx="6.44" ry="9.52" transform="rotate(0 50 36)" fill="#F2B705"/>
+        <ellipse cx="62.12" cy="43" rx="6.44" ry="9.52" transform="rotate(60 62.12 43)" fill="#EC7A1C"/>
+        <ellipse cx="62.12" cy="57" rx="6.44" ry="9.52" transform="rotate(120 62.12 57)" fill="#E0492E"/>
+        <ellipse cx="50" cy="64" rx="6.44" ry="9.52" transform="rotate(180 50 64)" fill="#D94F87"/>
+        <ellipse cx="37.88" cy="57" rx="6.44" ry="9.52" transform="rotate(240 37.88 57)" fill="#7FB23E"/>
+        <ellipse cx="37.88" cy="43" rx="6.44" ry="9.52" transform="rotate(300 37.88 43)" fill="#F2B705"/>
+      </g>
+      <circle cx="50" cy="50" r="5.6" fill="#F6D45E"/>
+    </g>
+    <g fill="#E8920C">
+      <path d="M76.34 51.8 L77 49.4 L77.66 51.8 Z"/><path d="M77.91 51.89 L79.96 50.48 L78.92 52.74 Z"/><path d="M79.06 52.97 L81.53 53.2 L79.28 54.27 Z"/><path d="M79.24 54.53 L80.98 56.3 L78.58 55.67 Z"/><path d="M78.37 55.84 L78.57 58.32 L77.13 56.3 Z"/><path d="M76.87 56.3 L75.43 58.32 L75.63 55.84 Z"/><path d="M75.42 55.67 L73.02 56.3 L74.76 54.53 Z"/><path d="M74.72 54.27 L72.47 53.2 L74.94 52.97 Z"/><path d="M75.08 52.74 L74.04 50.48 L76.09 51.89 Z"/><circle cx="77" cy="54" r="2.7"/>
+    </g>
+    <g fill="#E8920C">
+      <path d="M68.36 69.11 L69 66.9 L69.64 69.11 Z"/><path d="M69.88 69.21 L71.9 68.1 L70.79 70.12 Z"/><path d="M70.89 70.36 L73.1 71 L70.89 71.64 Z"/><path d="M70.79 71.88 L71.9 73.9 L69.88 72.79 Z"/><path d="M69.64 72.89 L69 75.1 L68.36 72.89 Z"/><path d="M68.12 72.79 L66.1 73.9 L67.21 71.88 Z"/><path d="M67.11 71.64 L64.9 71 L67.11 70.36 Z"/><path d="M67.21 70.12 L66.1 68.1 L68.12 69.21 Z"/><circle cx="69" cy="71" r="2.4"/>
+    </g>
+    <g fill="#E8920C">
+      <path d="M49.32 78.01 L50 75.7 L50.68 78.01 Z"/><path d="M50.93 78.12 L53.04 76.96 L51.88 79.07 Z"/><path d="M51.99 79.32 L54.3 80 L51.99 80.68 Z"/><path d="M51.88 80.93 L53.04 83.04 L50.93 81.88 Z"/><path d="M50.68 81.99 L50 84.3 L49.32 81.99 Z"/><path d="M49.07 81.88 L46.96 83.04 L48.12 80.93 Z"/><path d="M48.01 80.68 L45.7 80 L48.01 79.32 Z"/><path d="M48.12 79.07 L46.96 76.96 L49.07 78.12 Z"/><circle cx="50" cy="80" r="2.5"/>
+    </g>
+    <g fill="#E8920C">
+      <path d="M30.36 69.11 L31 66.9 L31.64 69.11 Z"/><path d="M31.88 69.21 L33.9 68.1 L32.79 70.12 Z"/><path d="M32.89 70.36 L35.1 71 L32.89 71.64 Z"/><path d="M32.79 71.88 L33.9 73.9 L31.88 72.79 Z"/><path d="M31.64 72.89 L31 75.1 L30.36 72.89 Z"/><path d="M30.12 72.79 L28.1 73.9 L29.21 71.88 Z"/><path d="M29.11 71.64 L26.9 71 L29.11 70.36 Z"/><path d="M29.21 70.12 L28.1 68.1 L30.12 69.21 Z"/><circle cx="31" cy="71" r="2.4"/>
+    </g>
+    <g fill="#E8920C">
+      <path d="M22.34 51.8 L23 49.4 L23.66 51.8 Z"/><path d="M23.91 51.89 L25.96 50.48 L24.92 52.74 Z"/><path d="M25.06 52.97 L27.53 53.2 L25.28 54.27 Z"/><path d="M25.24 54.53 L26.98 56.3 L24.58 55.67 Z"/><path d="M24.37 55.84 L24.57 58.32 L23.13 56.3 Z"/><path d="M22.87 56.3 L21.43 58.32 L21.63 55.84 Z"/><path d="M21.42 55.67 L19.02 56.3 L20.76 54.53 Z"/><path d="M20.72 54.27 L18.47 53.2 L20.94 52.97 Z"/><path d="M21.08 52.74 L20.04 50.48 L22.09 51.89 Z"/><circle cx="23" cy="54" r="2.7"/>
+    </g>
+    <path d="M50 50 L67.84 33.94" stroke="#33414F" stroke-width="4.5" stroke-linecap="round"/>
+    <circle cx="50" cy="50" r="3" fill="#33414F"/>
+  </symbol>
+</svg>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="hero-lockup">
+      <svg class="mark"><use href="#pw-mark"/></svg>
+      <div class="wordmark">Pollen<span class="w2">Watch</span></div>
+    </div>
+    <p class="hero-tag">The brand identity for <b>PollenWatch</b> — a Home Assistant integration that
+      aggregates pollen &amp; allergy forecasts from multiple sources into one combined severity reading.</p>
+  </header>
+
+  <!-- THE MARK -->
+  <section>
+    <p class="eyebrow">The mark</p>
+    <h2>One bloom, one reading</h2>
+    <p class="lede">A multi-color bloom shedding pollen, with a severity needle that starts at the
+      flower's heart and sweeps a green→amber→red dial. The dial reads like a warning gauge —
+      higher is worse — so the mark never feels cheerful about a rising count.</p>
+    <div class="logo-grid">
+      <div class="logo-card light"><span class="tag">Primary · on white</span>
+        <svg class="mark" style="width:150px;height:150px"><use href="#pw-mark"/></svg></div>
+      <div class="logo-card dark"><span class="tag">On dark</span>
+        <svg class="mark" style="width:150px;height:150px"><use href="#pw-mark"/></svg></div>
+    </div>
+  </section>
+
+  <!-- LOCKUPS -->
+  <section>
+    <p class="eyebrow">Logo system</p>
+    <h2>Lockups</h2>
+    <p class="lede">The icon is the hero and travels alone in product UI. For marketing and docs,
+      pair it with the wordmark horizontally or stacked. Wordmark is set in Bricolage Grotesque.</p>
+    <div class="logo-grid">
+      <div class="logo-card light"><span class="tag">Horizontal</span>
+        <div class="lockup-h"><svg class="mark"><use href="#pw-mark"/></svg>
+          <div class="wordmark">Pollen<span class="w2">Watch</span></div></div></div>
+      <div class="logo-card paper"><span class="tag">Stacked</span>
+        <div class="lockup-v"><svg class="mark"><use href="#pw-mark"/></svg>
+          <div class="wordmark">Pollen<span class="w2">Watch</span></div></div></div>
+      <div class="logo-card dark on-dark"><span class="tag">Reversed</span>
+        <div class="lockup-h"><svg class="mark"><use href="#pw-mark"/></svg>
+          <div class="wordmark">Pollen<span class="w2">Watch</span></div></div></div>
+      <div class="logo-card gold on-gold"><span class="tag">On brand gold</span>
+        <div class="lockup-h"><svg class="mark"><use href="#pw-mark"/></svg>
+          <div class="wordmark">Pollen<span class="w2">Watch</span></div></div></div>
+    </div>
+  </section>
+
+  <!-- CLEARSPACE + SIZES -->
+  <section>
+    <p class="eyebrow">Construction</p>
+    <h2>Clearspace &amp; minimum sizes</h2>
+    <p class="lede">Keep clear space equal to the dial's stroke weight on every side. The mark is
+      built to survive the small renders Home Assistant uses in the sidebar and integrations list.</p>
+    <div class="duo">
+      <div class="panel">
+        <h3>Clearspace</h3>
+        <p>Minimum padding around the mark.</p>
+        <div class="clearbox"><div class="clearframe">
+          <svg class="mark"><use href="#pw-mark"/></svg></div></div>
+      </div>
+      <div class="panel">
+        <h3>Sizes</h3>
+        <p>Renders cleanly down to 24px; 16px is the practical floor.</p>
+        <div class="sizes">
+          <div class="s"><svg class="mark" style="width:64px;height:64px"><use href="#pw-mark"/></svg><span>64</span></div>
+          <div class="s"><svg class="mark" style="width:48px;height:48px"><use href="#pw-mark"/></svg><span>48</span></div>
+          <div class="s"><svg class="mark" style="width:36px;height:36px"><use href="#pw-mark"/></svg><span>36</span></div>
+          <div class="s"><svg class="mark" style="width:24px;height:24px"><use href="#pw-mark"/></svg><span>24</span></div>
+          <div class="s"><svg class="mark" style="width:16px;height:16px"><use href="#pw-mark"/></svg><span>16</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLOR -->
+  <section>
+    <p class="eyebrow">Color</p>
+    <h2>Palette</h2>
+    <p class="lede">Pollen gold leads. Slate carries ink and the needle. The severity ramp is a
+      deliberate warning scale — never a "filling up = good" gradient.</p>
+
+    <p class="sub">Core</p>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#E8920C"></div><div class="meta"><div class="nm">Pollen Gold</div><div class="hx">#E8920C</div></div></div>
+      <div class="sw"><div class="chip" style="background:#F6D45E"></div><div class="meta"><div class="nm">Pollen Light</div><div class="hx">#F6D45E</div></div></div>
+      <div class="sw"><div class="chip" style="background:#33414F"></div><div class="meta"><div class="nm">Slate</div><div class="hx">#33414F</div></div></div>
+      <div class="sw"><div class="chip" style="background:#FBF7F0;box-shadow:inset 0 0 0 1px #ECE4D6"></div><div class="meta"><div class="nm">Paper</div><div class="hx">#FBF7F0</div></div></div>
+    </div>
+
+    <p class="sub">Severity ramp</p>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#3DAE5A"></div><div class="meta"><div class="nm">Low</div><div class="hx">#3DAE5A</div></div></div>
+      <div class="sw"><div class="chip" style="background:#F2A516"></div><div class="meta"><div class="nm">Moderate</div><div class="hx">#F2A516</div></div></div>
+      <div class="sw"><div class="chip" style="background:#EC7A1C"></div><div class="meta"><div class="nm">High</div><div class="hx">#EC7A1C</div></div></div>
+      <div class="sw"><div class="chip" style="background:#E0492E"></div><div class="meta"><div class="nm">Very High</div><div class="hx">#E0492E</div></div></div>
+    </div>
+
+    <p class="sub">Petal accents</p>
+    <div class="petals-row">
+      <div class="pe"><div class="chip" style="background:#F2B705"></div><div class="meta"><div class="hx">#F2B705</div></div></div>
+      <div class="pe"><div class="chip" style="background:#EC7A1C"></div><div class="meta"><div class="hx">#EC7A1C</div></div></div>
+      <div class="pe"><div class="chip" style="background:#E0492E"></div><div class="meta"><div class="hx">#E0492E</div></div></div>
+      <div class="pe"><div class="chip" style="background:#D94F87"></div><div class="meta"><div class="hx">#D94F87</div></div></div>
+      <div class="pe"><div class="chip" style="background:#7FB23E"></div><div class="meta"><div class="hx">#7FB23E</div></div></div>
+    </div>
+  </section>
+
+  <!-- SEVERITY SCALE -->
+  <section>
+    <p class="eyebrow">Product system</p>
+    <h2>Combined severity scale</h2>
+    <p class="lede">PollenWatch resolves many sources into a single four-step index. The needle and
+      every status surface use the same ramp, so a glance at any size tells the same story.</p>
+    <div class="sev">
+      <div class="sevcard"><div class="dot" style="background:#3DAE5A"></div><div class="lv">Low</div><div class="rng">Index 0–2.4</div><div class="desc">Comfortable for nearly everyone. Needle rests left.</div></div>
+      <div class="sevcard"><div class="dot" style="background:#F2A516"></div><div class="lv">Moderate</div><div class="rng">Index 2.5–4.9</div><div class="desc">Sensitive groups may notice symptoms.</div></div>
+      <div class="sevcard"><div class="dot" style="background:#EC7A1C"></div><div class="lv">High</div><div class="rng">Index 5.0–7.4</div><div class="desc">Most allergy sufferers affected. Needle in the warm zone.</div></div>
+      <div class="sevcard"><div class="dot" style="background:#E0492E"></div><div class="lv">Very High</div><div class="rng">Index 7.5–10</div><div class="desc">Avoid prolonged exposure. Needle pinned right, in the red.</div></div>
+    </div>
+    <div class="pill-row">
+      <span class="pill" style="background:#3DAE5A"><span class="pd"></span>Low</span>
+      <span class="pill" style="background:#F2A516"><span class="pd"></span>Moderate</span>
+      <span class="pill" style="background:#EC7A1C"><span class="pd"></span>High</span>
+      <span class="pill" style="background:#E0492E"><span class="pd"></span>Very High</span>
+    </div>
+  </section>
+
+  <!-- TYPOGRAPHY -->
+  <section>
+    <p class="eyebrow">Typography</p>
+    <h2>Type</h2>
+    <p class="lede">Bricolage Grotesque gives the wordmark and headings warmth with a technical edge.
+      Hanken Grotesk handles UI and body copy — friendly, highly legible at small sizes.</p>
+    <div class="type-row"><div class="label">Display</div><div class="spec">Bricolage 600</div>
+      <div class="glyphs" style="font-size:40px">Aa Bb Gg — PollenWatch</div></div>
+    <div class="type-row"><div class="label">Heading</div><div class="spec">Bricolage 600 · 34</div>
+      <div style="font-family:var(--disp);font-weight:600;font-size:30px">Combined severity, one glance</div></div>
+    <div class="type-row"><div class="label">Body</div><div class="spec">Hanken 400 · 16</div>
+      <div style="font-size:18px;max-width:560px">Aggregated pollen and allergy forecasts from multiple
+        sources, distilled into a single trustworthy reading on your dashboard.</div></div>
+    <div class="type-row"><div class="label">UI / numeric</div><div class="spec">Hanken 600</div>
+      <div style="font-weight:600;font-size:18px;font-variant-numeric:tabular-nums">0123456789 · Index 7.5 · Very High</div></div>
+  </section>
+
+  <!-- IN CONTEXT -->
+  <section>
+    <p class="eyebrow">In context</p>
+    <h2>Living in Home Assistant</h2>
+    <p class="lede">The icon sits in the sidebar and integrations list alongside other flat marks on
+      both light and dark themes, then expands into a dashboard card.</p>
+    <div class="ha">
+      <div class="ha-side">
+        <div class="item"><span class="ico"><svg class="gi" viewBox="0 0 24 24"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Overview</div>
+        <div class="item"><span class="ico"><svg class="gi" viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span>Logbook</div>
+        <div class="item active"><span class="ico"><svg><use href="#pw-mark"/></svg></span>PollenWatch</div>
+        <div class="item"><span class="ico"><svg class="gi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>History</div>
+        <div class="item"><span class="ico"><svg class="gi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></span>Settings</div>
+      </div>
+      <div class="ha-card">
+        <div class="top">
+          <svg class="mark"><use href="#pw-mark"/></svg>
+          <div><div class="ti">PollenWatch</div><div class="st">3 sources · updated 10 min ago</div></div>
+        </div>
+        <svg class="gauge-big" viewBox="0 0 100 62" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 56 A40 40 0 0 1 18.7 31.6" stroke="#3DAE5A" stroke-width="9" fill="none" stroke-linecap="round"/>
+          <path d="M22.4 27.6 A40 40 0 0 1 77.6 27.6" stroke="#F2A516" stroke-width="9" fill="none" stroke-linecap="round"/>
+          <path d="M81.3 31.6 A40 40 0 0 1 90 56" stroke="#E0492E" stroke-width="9" fill="none" stroke-linecap="round"/>
+          <path d="M50 56 L75 39" stroke="#33414F" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="50" cy="56" r="5" fill="#33414F"/>
+        </svg>
+        <div class="reading"><div class="num" style="color:#E0492E">7.8</div>
+          <div class="cap">Combined · Very High</div></div>
+      </div>
+    </div>
+    <div class="caveat"><b>Note on the needle:</b> the slate needle is intentionally low-contrast on
+      dark themes — the bright dial, pollen, and petals carry the mark. If a higher-contrast dark-mode
+      lockup is needed, the needle can shift to Pollen Light (#F6D45E) without changing the silhouette.</div>
+  </section>
+
+  <footer>
+    PollenWatch brand identity · Icon delivered for the Home Assistant brand spec
+    (icon.png 256×256, icon@2x.png 512×512, transparent, trimmed).
+  </footer>
+
+</div>
+</body>
+</html>
