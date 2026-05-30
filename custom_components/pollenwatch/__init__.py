@@ -9,6 +9,9 @@ which only run when HA loads the integration.
 
 from __future__ import annotations
 
+import json
+import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .const import DOMAIN, PLATFORMS
@@ -17,6 +20,17 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
     from .coordinator import PollenWatchConfigEntry
+
+_LOGGER = logging.getLogger(__name__)
+
+# Auto-register the bundled Lovelace card as a frontend resource (once per HA
+# boot). The card lives at custom_components/pollenwatch/frontend/ and is served
+# via a registered static path; cache-busted by manifest version. There is no
+# public "remove_extra_js_url" in HA, so this persists for the session even on
+# unload (benign; cleared on restart). HACS uses the same pattern.
+_CARD_URL_BASE = "/pollenwatch_card_static"
+_CARD_FILE = "pollenwatch-card.js"
+_CARD_LOADED_KEY = "pollenwatch_card_registered"
 
 __all__ = [
     "DOMAIN",
@@ -49,6 +63,42 @@ async def async_migrate_entry(
     return True
 
 
+async def _async_register_card(hass: HomeAssistant) -> None:
+    """Serve + register the bundled Lovelace card. Idempotent per HA boot."""
+    if hass.data.get(_CARD_LOADED_KEY):
+        return
+    hass.data[_CARD_LOADED_KEY] = True
+
+    from homeassistant.components.frontend import add_extra_js_url
+    from homeassistant.components.http import StaticPathConfig
+
+    frontend_dir = Path(__file__).parent / "frontend"
+    if not (frontend_dir / _CARD_FILE).is_file():
+        _LOGGER.warning(
+            "PollenWatch card bundle not found at %s; card will not be served",
+            frontend_dir / _CARD_FILE,
+        )
+        return
+
+    # Cache-bust via manifest version so a HACS update reloads the JS in the
+    # browser. Read in an executor — sync I/O on the event loop trips HA's
+    # blocking-call detector.
+    def _read_version() -> str:
+        try:
+            data = json.loads((Path(__file__).parent / "manifest.json").read_text())
+            return data.get("version", "0")
+        except OSError:
+            return "0"
+
+    version = await hass.async_add_executor_job(_read_version)
+
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(_CARD_URL_BASE, str(frontend_dir), False)]
+    )
+    add_extra_js_url(hass, f"{_CARD_URL_BASE}/{_CARD_FILE}?v={version}")
+    _LOGGER.info("PollenWatch Lovelace card registered (v%s)", version)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: PollenWatchConfigEntry
 ) -> bool:
@@ -61,6 +111,10 @@ async def async_setup_entry(
         PollenWatchData,
         build_coordinators,
     )
+
+    # One install delivers the integration AND the Lovelace card — auto-register
+    # the card on first config-entry load (no-op on subsequent entries).
+    await _async_register_card(hass)
 
     coordinators = build_coordinators(hass, entry)
     # Open-Meteo is the primary, keyless source: it must be ready or the entry
