@@ -1,7 +1,7 @@
 {
   "domain": "pollenwatch",
   "name": "PollenWatch",
-  "after_dependencies": ["recorder"],
+  "after_dependencies": ["frontend", "http", "recorder"],
   "codeowners": ["@TheDave94"],
   "config_flow": true,
   "dependencies": [],
