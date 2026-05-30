@@ -67,6 +67,10 @@ async def _async_register_card(hass: HomeAssistant) -> None:
     """Serve + register the bundled Lovelace card. Idempotent per HA boot."""
     if hass.data.get(_CARD_LOADED_KEY):
         return
+    # HTTP isn't available in some non-frontend HA contexts (e.g. unit-test
+    # harnesses that don't load the http component) — no-op there.
+    if getattr(hass, "http", None) is None:
+        return
     hass.data[_CARD_LOADED_KEY] = True
 
     from homeassistant.components.frontend import add_extra_js_url

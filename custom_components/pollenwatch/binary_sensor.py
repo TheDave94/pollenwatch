@@ -35,13 +35,20 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the divergence binary sensors (one per multi-source species)."""
+    from .sensor import _async_remove_orphan_analytics
+
     runtime = entry.runtime_data
     analytics = runtime.analytics
     if analytics is None:
+        _async_remove_orphan_analytics(hass, entry, set(), "divergence")
         return
+    species_list = multi_source_species(runtime.coordinators)
+    # Prune divergence binary sensors for species that dropped below the
+    # 2-source threshold (mirrors the consensus pruning in sensor.py).
+    _async_remove_orphan_analytics(hass, entry, set(species_list), "divergence")
     async_add_entities(
         DivergenceSensor(analytics, entry, species)
-        for species in multi_source_species(runtime.coordinators)
+        for species in species_list
     )
 
 

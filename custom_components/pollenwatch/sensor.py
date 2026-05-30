@@ -51,6 +51,13 @@ from .coordinator import (
     multi_source_species,
 )
 
+# All possible per-source slugs the integration could ever have created
+# entities under. Used to prune entities for sources that have been DISABLED
+# via the options flow (those sources stop being built into coordinators, so
+# the per-coordinator pruning loop never reaches them — without this catch
+# they orphan as ``unavailable`` forever).
+ALL_KNOWN_SOURCES: set[str] = set(SOURCE_DEVICE_NAMES.keys())
+
 # Extra-state-attribute keys for the recent_percentile sensor.
 ATTR_HISTORY_STATUS = "history_status"
 ATTR_DAYS_OF_HISTORY = "days_of_history"
@@ -111,12 +118,47 @@ async def async_setup_entry(
                     RecentPercentileSensor(analytics, entry, source_key, allergen)
                 )
 
+    # Prune entities for sources that are no longer enabled — disabling a
+    # source via the options flow stops it being built into a coordinator, so
+    # the per-coordinator loop above never runs the prune for it. Without this
+    # catch the disabled source's sensors live on as ``unavailable`` forever.
+    active_sources = set(runtime.coordinators.keys())
+    for source_key in ALL_KNOWN_SOURCES:
+        if source_key not in active_sources:
+            _async_remove_deconfigured_entities(hass, entry, source_key, set())
+
     # Cross-source consensus: one per species that >= 2 sources currently cover.
+    multi_species: list[str] = []
     if analytics is not None:
-        for species in multi_source_species(runtime.coordinators):
+        multi_species = multi_source_species(runtime.coordinators)
+        for species in multi_species:
             entities.append(ConsensusSensor(analytics, entry, species))
 
+    # Prune stale consensus sensors for species that dropped below the
+    # 2-source threshold (e.g. user disabled a source). Same orphan story
+    # as above, applied to the analytics device.
+    _async_remove_orphan_analytics(hass, entry, set(multi_species), "consensus")
+
     async_add_entities(entities)
+
+
+@callback
+def _async_remove_orphan_analytics(
+    hass: HomeAssistant,
+    entry: PollenWatchConfigEntry,
+    active_species: set[str],
+    metric: str,
+) -> None:
+    """Remove analytics entities (consensus / divergence) for species no
+    longer covered by >= 2 sources. Shared by sensor.py + binary_sensor.py.
+    """
+    registry = er.async_get(hass)
+    prefix = f"{entry.entry_id}_{metric}_"
+    for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if reg_entry.unique_id.startswith(prefix):
+            species = reg_entry.unique_id[len(prefix):]
+            if species not in active_species:
+                registry.async_remove(reg_entry.entity_id)
 
 
 @callback
