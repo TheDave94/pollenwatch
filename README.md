@@ -14,19 +14,11 @@ provider; PollenWatch instead **combines independent sources** and adds a
 **cross-source analytics layer** on top. That combination is the point.
 
 > [!NOTE]
-> **Status: release candidate (v1.2.0-rc2) — feature-complete, validating.**
-> Not yet declared stable. A few things to know before you rely on it:
-> - **DWD, MeteoSwiss and ePIN have never run in production.** Their data paths
->   are validated against the live feeds and mocked tests, but the maintainer is
->   in Austria — outside all three coverage areas (Germany / Switzerland /
->   Bavaria) — so a user enabling one of them is its first real-world run.
->   (**Google**, by contrast, covers Austria, so it *is* validatable on the
->   maintainer's instance.) Please
->   [open an issue](https://github.com/TheDave94/pollenwatch/issues) if anything
->   looks off.
-> - **Consensus has a known lone-higher edge** ([#1](https://github.com/TheDave94/pollenwatch/issues/1)):
->   with ≥3 sources (now up to 6), a single higher reading can pull the consensus
->   up without flagging divergence. Documented and deferred for a redesign.
+> **PollenWatch is a personal project shared publicly.** Stable means the
+> maintainer relies on it daily. It ships a bundled Lovelace severity-gauge
+> card that is auto-registered on install — one HACS install delivers both.
+> See **[Known limitations](#known-limitations)** below for honest disclosure
+> of the open items. Issues welcome as time allows.
 >
 > Minimum Home Assistant **2024.11.0** (see
 > [HA_COMPATIBILITY.md](HA_COMPATIBILITY.md) for the API audit).
@@ -144,6 +136,28 @@ The cross-source metrics live under a separate **"PollenWatch Analytics"**
 device: `sensor.pollenwatch_analytics_<allergen>_consensus` and
 `binary_sensor.pollenwatch_analytics_<allergen>_divergence`.
 
+## Dashboard card
+
+A combined-consensus severity gauge ships with the integration and is
+auto-registered as a Lovelace resource on install — no manual resource step.
+Add it to any dashboard:
+
+```yaml
+type: custom:pollenwatch-card
+species: grass            # one of: alder | birch | grass | mugwort | olive | ragweed
+show_mixed_span: false    # optional; when true, the 'mixed' caption names
+                          # the conflicting span (e.g. 'none–high · across 5 sources')
+expanded_default: false   # optional; show per-source breakdown expanded by default
+```
+
+The gauge has six honest states — `none`, `low`, `high`, `mixed`, `unknown`,
+`nodata` — with deliberately distinct treatments for missing data (gray, no
+needle) so an empty reading never visually resembles a safe-low one. See
+[`brand/GAUGE_SPEC.md`](brand/GAUGE_SPEC.md) for the full spec. Per-allergen
+breakdown is one click away — each source's native reading (grains/m³, DWD's
+7-point string, polleninformation's 0–4 index, Google's UPI 0–5) on demand.
+Adapts to HA's light + dark themes; brand severity ramp stays constant per spec.
+
 ### Using the pollenprognos-card
 
 [pollenprognos-card](https://github.com/krissen/pollenprognos-card) does not yet
@@ -168,11 +182,29 @@ PollenWatch's data carries these required attributions:
 
 > Source: Includes pollen data from Google
 
+## Known limitations
+
+Honest disclosures, not blockers — these describe the state of a project the
+maintainer uses daily.
+
+- **Consensus has a lone-higher edge** ([#1](https://github.com/TheDave94/pollenwatch/issues/1)):
+  with ≥ 3 sources, a single higher reading can pull the consensus up without
+  flagging divergence. The gauge surfaces `mixed` cleanly when sources differ
+  by more than one level, but the adjacent-level `{1,1,2}` case still resolves
+  to the higher (`high`). Under investigation for a future release; tracked
+  in the [REVIEW_QUEUE](REVIEW_QUEUE.md).
+- **Per-source maturity is uneven.** Open-Meteo, polleninformation and Google
+  run on the maintainer's live HA. **DWD, MeteoSwiss and ePIN** are
+  validated against the live feeds and exercised on a maintainer-side throwaway
+  HA in Munich; they have **not yet run in normal end-user installations**, so
+  enabling one of those is its first real-world run. Please
+  [open an issue](https://github.com/TheDave94/pollenwatch/issues) if anything
+  looks off.
+
 ## Brand & design
 
-Brand identity, design tokens, and the severity-gauge spec live in
-[`brand/`](brand/) — the design source-of-truth (icon, palette, type, gauge
-state recipes, banner + social-preview assets).
+Brand identity, design tokens, the gauge spec and reference state SVGs live in
+[`brand/`](brand/) — the design source-of-truth.
 
 ## License
 
