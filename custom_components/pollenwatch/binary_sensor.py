@@ -26,6 +26,10 @@ from .coordinator import (
     multi_source_species,
 )
 
+# Coordinator-driven entities with no per-entity writes — HA serialization
+# is unnecessary; declare parallel updates to keep the silver rule explicit.
+PARALLEL_UPDATES = 0
+
 ATTR_SOURCE_LEVELS = "source_levels"
 
 
@@ -72,6 +76,7 @@ class DivergenceSensor(
         super().__init__(coordinator)
         self._species = species
         self._attr_unique_id = f"{entry.entry_id}_divergence_{species}"
+        self._attr_translation_key = f"divergence_{species}"
         self._attr_name = f"{ALLERGEN_NAMES.get(species, species)} divergence"
         # Canonical-key entity_id — one rule across all 24 species so users
         # iterating programmatically don't need a translation table.

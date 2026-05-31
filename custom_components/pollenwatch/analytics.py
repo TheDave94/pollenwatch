@@ -14,6 +14,10 @@ are unit-tested in isolation like the source parsers.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .sources.base import AllergenSeries
 
 # (onset, peak) grains/m³ per species — EAACI (Pfaar 2017/2020), as used by
 # Copernicus CAMS / Climate-ADAPT. See ANALYTICS.md for citations. alder and
@@ -135,6 +139,54 @@ def google_collapse(value: object) -> int | None:
     except (ValueError, TypeError):
         return None
     return _UPI_TO_LEVEL.get(upi)
+
+
+# Per-source bucketing dispatch. Hardcoded source-key strings (mirrored from
+# const.SOURCE_*) rather than const.py imports — keeps this module HA-free +
+# dependency-light, and the keys are baseline constants whose value would
+# break entity unique_ids if changed.
+_SRC_DWD = "dwd"
+_SRC_POLLENINFORMATION = "polleninformation"
+_SRC_GOOGLE = "google"
+
+#: Canonical human-readable labels for the 3-level scale. Matches the
+#: consensus enum vocabulary verbatim (see brand/GAUGE_SPEC.md) so a raw
+#: sensor's ``level_label`` reads the same as the consensus state.
+LEVEL_LABELS: dict[int, str] = {0: "none", 1: "low", 2: "high"}
+
+
+def level_label(level: int | None) -> str | None:
+    """Human-readable label for an int level. ``None`` in → ``None`` out."""
+    if level is None:
+        return None
+    return LEVEL_LABELS.get(level)
+
+
+def level_for_source(
+    source_key: str, species: str, series: AllergenSeries
+) -> int | None:
+    """Bucket one source's reading for one species to the common 0/1/2 level.
+
+    Single source of truth for every consumer that needs a severity bucket:
+    the analytics consensus pass, the raw-sensor ``level`` attribute (v2.1+),
+    and any future caller. Mirrors what the analytics layer already does;
+    the previous private duplicate on the analytics coordinator delegates
+    to this function as of v2.1.
+
+    Returns ``None`` when bucketing can't resolve: DWD ``"-1"`` no-data, a
+    missing/unparseable Google UPI, or a grains/m³ species without a
+    threshold entry (only alternaria — which never reaches this path,
+    routed via collapse_index instead).
+    """
+    if source_key == _SRC_DWD:
+        return dwd_collapse(series.native)  # 7-point string
+    if series.current is None:
+        return None
+    if source_key == _SRC_POLLENINFORMATION:
+        return collapse_index(int(series.current))  # 0–4 index
+    if source_key == _SRC_GOOGLE:
+        return google_collapse(series.current)  # UPI 0–5 index
+    return bucket_level(species, series.current)  # grains/m³ concentration
 
 
 def daily_peaks(

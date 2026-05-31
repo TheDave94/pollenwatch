@@ -25,13 +25,10 @@ from .analytics import (
     PERCENTILE_WINDOW_DAYS,
     ConsensusResult,
     PercentileResult,
-    bucket_level,
-    collapse_index,
     compute_recent_percentile,
     consensus,
     daily_peaks,
-    dwd_collapse,
-    google_collapse,
+    level_for_source,
     recent_percentile_from_series,
 )
 from .const import (
@@ -271,22 +268,13 @@ class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator[AnalyticsData]):
     def _source_level(
         self, source_key: str, species: str, series: AllergenSeries
     ) -> int | None:
-        """Map a source's current reading to the common 0/1/2 level (or None).
+        """Delegate to analytics.level_for_source (single source of truth).
 
-        DWD maps from its native 7-point string and polleninformation from its
-        0–4 index; every other source is a grains/m³ concentration and buckets
-        via the shared EAACI thresholds — so new concentration sources
-        (MeteoSwiss, ePIN) need no new mapping code.
+        Kept as a thin method for call-site stability; v2.1+ the raw
+        ``PollenWatchSensor`` reads the same function for its ``level``
+        attribute so dashboards never re-implement bucketing.
         """
-        if source_key == SOURCE_DWD:
-            return dwd_collapse(series.native)  # native 7-point string
-        if series.current is None:
-            return None
-        if source_key == SOURCE_POLLENINFORMATION:
-            return collapse_index(int(series.current))  # 0–4 index
-        if source_key == SOURCE_GOOGLE:
-            return google_collapse(series.current)  # UPI 0–5 index
-        return bucket_level(species, series.current)  # grains/m³ concentration
+        return level_for_source(source_key, species, series)
 
     async def _async_update_data(self) -> AnalyticsData:
         today = dt_util.now().date().isoformat()

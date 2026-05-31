@@ -197,10 +197,17 @@ your location simply does not materialize an entity** — selection bounds the
 blowup; you don't get permanently-`unavailable` orphans. A species **one source
 covers** still gets a consensus entity (badge reads `1/n`, with the gauge in
 single-source mode — desaturated, with an explicit "single source" label, so the
-honesty gradient is visible at a glance). 9 of the 24 species have published
-EAACI/CAMS clinical thresholds; the remaining 15 are graded against
-related-family thresholds (the consensus is still categorical, just one tier
-softer in evidence) — see [ANALYTICS.md](ANALYTICS.md) for the full provenance.
+honesty gradient is visible at a glance). The 3-level scale itself
+(`none`/`low`/`high`) and its grains/m³ boundaries are sourced from
+EAACI/Pfaar position papers and used by CAMS/Climate-ADAPT (see
+[ANALYTICS.md](ANALYTICS.md)). The v2.0 expansion to 24 species extended that
+threshold table by family-bracket analogy — the same approach already used
+within v1 for alder/mugwort. Per-species evidence-tier (which species have
+independently-cited cutoffs vs. which inherit a relative's bracket) is being
+verified in
+[#3](https://github.com/TheDave94/pollenwatch/issues/3); until that lands,
+the README does not name a specific "exact" list, and the new `level`
+attribute (v2.1) deliberately omits a `threshold_status` field.
 
 ## Dashboard card
 
@@ -274,17 +281,20 @@ maintainer uses daily.
   enabling one of those is its first real-world run. Please
   [open an issue](https://github.com/TheDave94/pollenwatch/issues) if anything
   looks off.
-- **15 of 24 species are graded against related-family thresholds**, not
-  exact-species cutoffs (no published EAACI/CAMS thresholds exist for them —
-  the only honest options were to ship them ungraded or to grade against a
-  near relative; the latter was chosen and is documented per-species in
-  [ANALYTICS.md](ANALYTICS.md)). The `low`/`high` categories still mean
-  "in season" / "at or above peak," but the evidence is one tier softer than
-  for alder/birch/grass/hazel/mugwort/ragweed/olive/rye/cypress, which do have
-  exact-species thresholds.
-- **alternaria is a fungal spore, not pollen** — kept opt-in (never preselected),
-  graded against a related-family threshold. Useful for people who track it
-  alongside pollen; safe to ignore otherwise.
+- **Per-species threshold provenance is being verified**
+  ([#3](https://github.com/TheDave94/pollenwatch/issues/3)). The 3-level
+  scale (`none`/`low`/`high`) and its grains/m³ boundaries are EAACI/Pfaar-sourced
+  and CAMS/Climate-ADAPT-used (see [ANALYTICS.md](ANALYTICS.md)). The v2.0
+  expansion to 24 species extended that table by family-bracket analogy —
+  the same approach v1 already used for alder/mugwort within the original 6.
+  Honest about the numbers, not yet rigorous about which species have
+  independently-cited per-species cutoffs vs. inherit a relative's bracket.
+  Treat the `low`/`high` buckets as "in season" / "at or above peak" for every
+  species; per-species evidence-tier will be documented once the literature
+  review lands.
+- **alternaria is a fungal spore, not pollen** — kept opt-in (never
+  preselected). Useful for people who track it alongside pollen; safe to
+  ignore otherwise.
 - **Per-region default selection is a starting recommendation, not a
   prescription.** The country-default table is maintained by the project, not
   a clinical authority; it's a defensible v1 of "what most people in this

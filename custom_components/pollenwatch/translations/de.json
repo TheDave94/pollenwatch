@@ -99,20 +99,364 @@
       "alder": {
         "name": "Erle"
       },
+      "consensus_alder": {
+        "name": "Erle Konsens"
+      },
+      "personal_score_alder": {
+        "name": "Erle Personal-Score"
+      },
+      "recent_percentile_alder": {
+        "name": "Erle aktuelles Perzentil"
+      },
+      "alternaria": {
+        "name": "Alternaria"
+      },
+      "consensus_alternaria": {
+        "name": "Alternaria Konsens"
+      },
+      "personal_score_alternaria": {
+        "name": "Alternaria Personal-Score"
+      },
+      "recent_percentile_alternaria": {
+        "name": "Alternaria aktuelles Perzentil"
+      },
+      "ash": {
+        "name": "Esche"
+      },
+      "consensus_ash": {
+        "name": "Esche Konsens"
+      },
+      "personal_score_ash": {
+        "name": "Esche Personal-Score"
+      },
+      "recent_percentile_ash": {
+        "name": "Esche aktuelles Perzentil"
+      },
+      "asteraceae": {
+        "name": "Korbblütler"
+      },
+      "consensus_asteraceae": {
+        "name": "Korbblütler Konsens"
+      },
+      "personal_score_asteraceae": {
+        "name": "Korbblütler Personal-Score"
+      },
+      "recent_percentile_asteraceae": {
+        "name": "Korbblütler aktuelles Perzentil"
+      },
+      "beech": {
+        "name": "Buche"
+      },
+      "consensus_beech": {
+        "name": "Buche Konsens"
+      },
+      "personal_score_beech": {
+        "name": "Buche Personal-Score"
+      },
+      "recent_percentile_beech": {
+        "name": "Buche aktuelles Perzentil"
+      },
       "birch": {
         "name": "Birke"
+      },
+      "consensus_birch": {
+        "name": "Birke Konsens"
+      },
+      "personal_score_birch": {
+        "name": "Birke Personal-Score"
+      },
+      "recent_percentile_birch": {
+        "name": "Birke aktuelles Perzentil"
+      },
+      "carpinus": {
+        "name": "Hainbuche"
+      },
+      "consensus_carpinus": {
+        "name": "Hainbuche Konsens"
+      },
+      "personal_score_carpinus": {
+        "name": "Hainbuche Personal-Score"
+      },
+      "recent_percentile_carpinus": {
+        "name": "Hainbuche aktuelles Perzentil"
+      },
+      "chenopodium": {
+        "name": "Gänsefuß"
+      },
+      "consensus_chenopodium": {
+        "name": "Gänsefuß Konsens"
+      },
+      "personal_score_chenopodium": {
+        "name": "Gänsefuß Personal-Score"
+      },
+      "recent_percentile_chenopodium": {
+        "name": "Gänsefuß aktuelles Perzentil"
+      },
+      "cypress_family": {
+        "name": "Zypressengewächse"
+      },
+      "consensus_cypress_family": {
+        "name": "Zypressengewächse Konsens"
+      },
+      "personal_score_cypress_family": {
+        "name": "Zypressengewächse Personal-Score"
+      },
+      "recent_percentile_cypress_family": {
+        "name": "Zypressengewächse aktuelles Perzentil"
+      },
+      "elm": {
+        "name": "Ulme"
+      },
+      "consensus_elm": {
+        "name": "Ulme Konsens"
+      },
+      "personal_score_elm": {
+        "name": "Ulme Personal-Score"
+      },
+      "recent_percentile_elm": {
+        "name": "Ulme aktuelles Perzentil"
       },
       "grass": {
         "name": "Gräser"
       },
+      "consensus_grass": {
+        "name": "Gräser Konsens"
+      },
+      "personal_score_grass": {
+        "name": "Gräser Personal-Score"
+      },
+      "recent_percentile_grass": {
+        "name": "Gräser aktuelles Perzentil"
+      },
+      "hazel": {
+        "name": "Hasel"
+      },
+      "consensus_hazel": {
+        "name": "Hasel Konsens"
+      },
+      "personal_score_hazel": {
+        "name": "Hasel Personal-Score"
+      },
+      "recent_percentile_hazel": {
+        "name": "Hasel aktuelles Perzentil"
+      },
+      "holm_oak": {
+        "name": "Steineiche"
+      },
+      "consensus_holm_oak": {
+        "name": "Steineiche Konsens"
+      },
+      "personal_score_holm_oak": {
+        "name": "Steineiche Personal-Score"
+      },
+      "recent_percentile_holm_oak": {
+        "name": "Steineiche aktuelles Perzentil"
+      },
+      "juglans": {
+        "name": "Walnuss"
+      },
+      "consensus_juglans": {
+        "name": "Walnuss Konsens"
+      },
+      "personal_score_juglans": {
+        "name": "Walnuss Personal-Score"
+      },
+      "recent_percentile_juglans": {
+        "name": "Walnuss aktuelles Perzentil"
+      },
       "mugwort": {
         "name": "Beifuß"
+      },
+      "consensus_mugwort": {
+        "name": "Beifuß Konsens"
+      },
+      "personal_score_mugwort": {
+        "name": "Beifuß Personal-Score"
+      },
+      "recent_percentile_mugwort": {
+        "name": "Beifuß aktuelles Perzentil"
+      },
+      "nettle_family": {
+        "name": "Brennnesselgewächse"
+      },
+      "consensus_nettle_family": {
+        "name": "Brennnesselgewächse Konsens"
+      },
+      "personal_score_nettle_family": {
+        "name": "Brennnesselgewächse Personal-Score"
+      },
+      "recent_percentile_nettle_family": {
+        "name": "Brennnesselgewächse aktuelles Perzentil"
+      },
+      "oak": {
+        "name": "Eiche"
+      },
+      "consensus_oak": {
+        "name": "Eiche Konsens"
+      },
+      "personal_score_oak": {
+        "name": "Eiche Personal-Score"
+      },
+      "recent_percentile_oak": {
+        "name": "Eiche aktuelles Perzentil"
       },
       "olive": {
         "name": "Olive"
       },
+      "consensus_olive": {
+        "name": "Olive Konsens"
+      },
+      "personal_score_olive": {
+        "name": "Olive Personal-Score"
+      },
+      "recent_percentile_olive": {
+        "name": "Olive aktuelles Perzentil"
+      },
+      "plane_tree": {
+        "name": "Platane"
+      },
+      "consensus_plane_tree": {
+        "name": "Platane Konsens"
+      },
+      "personal_score_plane_tree": {
+        "name": "Platane Personal-Score"
+      },
+      "recent_percentile_plane_tree": {
+        "name": "Platane aktuelles Perzentil"
+      },
+      "plantago": {
+        "name": "Wegerich"
+      },
+      "consensus_plantago": {
+        "name": "Wegerich Konsens"
+      },
+      "personal_score_plantago": {
+        "name": "Wegerich Personal-Score"
+      },
+      "recent_percentile_plantago": {
+        "name": "Wegerich aktuelles Perzentil"
+      },
       "ragweed": {
         "name": "Ambrosia"
+      },
+      "consensus_ragweed": {
+        "name": "Ambrosia Konsens"
+      },
+      "personal_score_ragweed": {
+        "name": "Ambrosia Personal-Score"
+      },
+      "recent_percentile_ragweed": {
+        "name": "Ambrosia aktuelles Perzentil"
+      },
+      "rumex": {
+        "name": "Ampfer"
+      },
+      "consensus_rumex": {
+        "name": "Ampfer Konsens"
+      },
+      "personal_score_rumex": {
+        "name": "Ampfer Personal-Score"
+      },
+      "recent_percentile_rumex": {
+        "name": "Ampfer aktuelles Perzentil"
+      },
+      "rye": {
+        "name": "Roggen"
+      },
+      "consensus_rye": {
+        "name": "Roggen Konsens"
+      },
+      "personal_score_rye": {
+        "name": "Roggen Personal-Score"
+      },
+      "recent_percentile_rye": {
+        "name": "Roggen aktuelles Perzentil"
+      },
+      "urtica": {
+        "name": "Brennnessel"
+      },
+      "consensus_urtica": {
+        "name": "Brennnessel Konsens"
+      },
+      "personal_score_urtica": {
+        "name": "Brennnessel Personal-Score"
+      },
+      "recent_percentile_urtica": {
+        "name": "Brennnessel aktuelles Perzentil"
+      }
+    },
+    "binary_sensor": {
+      "divergence_alder": {
+        "name": "Erle Divergenz"
+      },
+      "divergence_alternaria": {
+        "name": "Alternaria Divergenz"
+      },
+      "divergence_ash": {
+        "name": "Esche Divergenz"
+      },
+      "divergence_asteraceae": {
+        "name": "Korbblütler Divergenz"
+      },
+      "divergence_beech": {
+        "name": "Buche Divergenz"
+      },
+      "divergence_birch": {
+        "name": "Birke Divergenz"
+      },
+      "divergence_carpinus": {
+        "name": "Hainbuche Divergenz"
+      },
+      "divergence_chenopodium": {
+        "name": "Gänsefuß Divergenz"
+      },
+      "divergence_cypress_family": {
+        "name": "Zypressengewächse Divergenz"
+      },
+      "divergence_elm": {
+        "name": "Ulme Divergenz"
+      },
+      "divergence_grass": {
+        "name": "Gräser Divergenz"
+      },
+      "divergence_hazel": {
+        "name": "Hasel Divergenz"
+      },
+      "divergence_holm_oak": {
+        "name": "Steineiche Divergenz"
+      },
+      "divergence_juglans": {
+        "name": "Walnuss Divergenz"
+      },
+      "divergence_mugwort": {
+        "name": "Beifuß Divergenz"
+      },
+      "divergence_nettle_family": {
+        "name": "Brennnesselgewächse Divergenz"
+      },
+      "divergence_oak": {
+        "name": "Eiche Divergenz"
+      },
+      "divergence_olive": {
+        "name": "Olive Divergenz"
+      },
+      "divergence_plane_tree": {
+        "name": "Platane Divergenz"
+      },
+      "divergence_plantago": {
+        "name": "Wegerich Divergenz"
+      },
+      "divergence_ragweed": {
+        "name": "Ambrosia Divergenz"
+      },
+      "divergence_rumex": {
+        "name": "Ampfer Divergenz"
+      },
+      "divergence_rye": {
+        "name": "Roggen Divergenz"
+      },
+      "divergence_urtica": {
+        "name": "Brennnessel Divergenz"
       }
     }
   }

@@ -21,7 +21,14 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .analytics import CONSENSUS_OPTIONS, daily_peaks
+from .analytics import (
+    CONSENSUS_OPTIONS,
+    daily_peaks,
+    level_for_source,
+)
+from .analytics import (
+    level_label as _level_label,
+)
 from .const import (
     ALLERGEN_NAMES,
     ATTR_FORECAST,
@@ -53,6 +60,10 @@ from .coordinator import (
     analytics_device_info,
 )
 
+# Coordinator-driven entities with no per-entity writes — HA serialization
+# is unnecessary; declare parallel updates to keep the silver rule explicit.
+PARALLEL_UPDATES = 0
+
 # All possible per-source slugs the integration could ever have created
 # entities under. Used to prune entities for sources that have been DISABLED
 # via the options flow (those sources stop being built into coordinators, so
@@ -65,6 +76,7 @@ ATTR_HISTORY_STATUS = "history_status"
 ATTR_DAYS_OF_HISTORY = "days_of_history"
 # ... and the consensus sensor.
 ATTR_LEVEL = "level"
+ATTR_LEVEL_LABEL = "level_label"
 ATTR_SOURCE_LEVELS = "source_levels"
 
 
@@ -224,6 +236,7 @@ class PollenWatchSensor(
     ) -> None:
         super().__init__(coordinator)
         self._allergen = allergen
+        self._source_key = source_key
         entry = coordinator.config_entry
         self._attr_unique_id = f"{entry.entry_id}_{source_key}_{allergen}"
         self._attr_translation_key = allergen
@@ -271,10 +284,16 @@ class PollenWatchSensor(
             return None
         shift = result.coordinate_shift_km
         today = (result.current_time or "")[:10]
+        # Normalised severity from the integration's own bucketing
+        # (analytics.level_for_source — single source of truth for every
+        # downstream consumer, replacing per-dashboard threshold tables).
+        lvl = level_for_source(self._source_key, self._allergen, series)
         attrs: dict[str, Any] = {
             ATTR_FORECAST: _forecast_attr(
                 result.times, series.values, today, FORECAST_DAYS
             ),
+            ATTR_LEVEL: lvl,
+            ATTR_LEVEL_LABEL: _level_label(lvl),
             ATTR_REQUESTED_LAT: result.requested_lat,
             ATTR_REQUESTED_LON: result.requested_lon,
             ATTR_SNAPPED_LAT: result.snapped_lat,
@@ -320,6 +339,7 @@ class PersonalScoreSensor(
         self._attr_unique_id = (
             f"{entry.entry_id}_{source_key}_{allergen}_personal_score"
         )
+        self._attr_translation_key = f"personal_score_{allergen}"
         self._attr_name = f"{ALLERGEN_NAMES.get(allergen, allergen)} personal score"
         # Canonical-key entity_id (see PollenWatchSensor for rationale).
         self.entity_id = (
@@ -374,6 +394,7 @@ class ConsensusSensor(
         super().__init__(coordinator)
         self._species = species
         self._attr_unique_id = f"{entry.entry_id}_consensus_{species}"
+        self._attr_translation_key = f"consensus_{species}"
         self._attr_name = f"{ALLERGEN_NAMES.get(species, species)} consensus"
         # Canonical-key entity_id (see PollenWatchSensor for rationale).
         self.entity_id = f"sensor.{DOMAIN}_analytics_{species}_consensus"
@@ -441,8 +462,7 @@ class RecentPercentileSensor(
         self._attr_unique_id = (
             f"{entry.entry_id}_{source_key}_{allergen}_recent_percentile"
         )
-        # English name (derived metrics aren't localised yet); the device-name
-        # slug keeps the entity ID as pollenwatch_<source>_<allergen>_recent_percentile.
+        self._attr_translation_key = f"recent_percentile_{allergen}"
         self._attr_name = f"{ALLERGEN_NAMES.get(allergen, allergen)} recent percentile"
         # Canonical-key entity_id (see PollenWatchSensor for rationale).
         self.entity_id = (
