@@ -98,7 +98,10 @@ def main() -> int:
     #   (b) entity count is STABLE across at least 2 consecutive polls
     #       (i.e. no new entities arrived since the last poll)
     # Both conditions must hold simultaneously.
-    log("polling for coordinator first-refresh post-upgrade (ceiling 90s, stable-count required)...")
+    log(
+        "polling for coordinator first-refresh post-upgrade "
+        "(ceiling 90s, stable-count required)..."
+    )
     t0 = time.monotonic()
     deadline = t0 + 90
     last_unready = -1
