@@ -21,7 +21,7 @@ import asyncio
 import json
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .ha_api import HAClient
@@ -48,7 +48,7 @@ def _read_storage_config_entries(config_dir: Path, domain: str | None = None) ->
 
 
 def _iso_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 async def _take_async(client: HAClient, ws: HAWebSocket, out_dir: Path,
@@ -100,7 +100,9 @@ async def _take_async(client: HAClient, ws: HAWebSocket, out_dir: Path,
         "run_id": run_id,
         "container_name": container_name,
         "ha_version": ha_info.get("version") if isinstance(ha_info, dict) else None,
-        "components_count": len(ha_info.get("components", [])) if isinstance(ha_info, dict) else None,
+        "components_count": (
+            len(ha_info.get("components", [])) if isinstance(ha_info, dict) else None
+        ),
         "pw_entity_count": len(pw_entities),
         "pw_config_entry_count": len(full_entries),
     }

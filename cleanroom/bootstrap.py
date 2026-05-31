@@ -23,28 +23,26 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import secrets
-import shutil
 import socket
 import subprocess
 import sys
 import time
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Allow `from lib.X import Y` when invoked as `python3 cleanroom/bootstrap.py`
 sys.path.insert(0, str(Path(__file__).parent))
 
-from lib.ha_api import HAClient  # noqa: E402
-from lib.ha_ws import HAWebSocket  # noqa: E402
+import asyncio  # noqa: E402
+
 from lib import hacs as hacs_ws  # noqa: E402
+from lib.ha_api import HAClient  # noqa: E402
 from lib.ha_flow import create_pollenwatch_entry, submit_pollenwatch_options  # noqa: E402
+from lib.ha_ws import HAWebSocket  # noqa: E402
 from lib.onboarding import walk_onboarding  # noqa: E402
 from lib.snapshot import take_snapshot  # noqa: E402
-
-import asyncio  # noqa: E402
 
 ROOT = Path(__file__).parent
 REPO_ROOT = ROOT.parent
@@ -73,7 +71,7 @@ def run(cmd: list[str], *, check: bool = True, capture: bool = False,
 
 
 def _iso_ts() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _container_name(run_id: str) -> str:
@@ -151,7 +149,7 @@ def preseed_config_dir(run_dir: Path, pat: str) -> None:
     storage = config_dir / ".storage"
     storage.mkdir(exist_ok=True)
     entry_id = secrets.token_hex(16)
-    iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+    iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
     hacs_entry = {
         "entry_id": entry_id,
         "version": 1,
@@ -256,13 +254,21 @@ def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
     """Poll until every pollenwatch entity has a non-null state object. Returns
     True on success, False on timeout (caller decides whether ceiling-hit is
     fatal — for the v1 cleanroom it is WARN+proceed)."""
-    log(f"  polling for coordinator first-refresh (every pw entity has a state); ceiling {timeout}s...")
+    log(
+        f"  polling for coordinator first-refresh (every pw entity has a state); "
+        f"ceiling {timeout}s..."
+    )
     t0 = time.monotonic()
     deadline = t0 + timeout
     last_unready = -1
     while time.monotonic() < deadline:
         all_states = client.all_states()
-        pw_states = [s for s in all_states if s.get("entity_id", "").startswith(("sensor.pollenwatch_", "binary_sensor.pollenwatch_"))]
+        pw_states = [
+            s for s in all_states
+            if s.get("entity_id", "").startswith(
+                ("sensor.pollenwatch_", "binary_sensor.pollenwatch_")
+            )
+        ]
         if not pw_states:
             time.sleep(2)
             continue
@@ -271,10 +277,16 @@ def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
         # data — that's a legitimate refresh-complete state).
         unready = [s for s in pw_states if s.get("state") in (None, "unknown")]
         if len(unready) != last_unready:
-            log(f"    {len(pw_states) - len(unready)}/{len(pw_states)} ready (waiting on {len(unready)})")
+            log(
+                f"    {len(pw_states) - len(unready)}/{len(pw_states)} ready "
+                f"(waiting on {len(unready)})"
+            )
             last_unready = len(unready)
         if not unready:
-            log(f"  ok   coordinator refresh complete in {time.monotonic() - t0:.1f}s ({len(pw_states)} entities)")
+            log(
+                f"  ok   coordinator refresh complete in "
+                f"{time.monotonic() - t0:.1f}s ({len(pw_states)} entities)"
+            )
             return True
         time.sleep(3)
     log(f"  WARN coordinator first-refresh did not complete within {timeout}s; proceeding")
@@ -302,7 +314,9 @@ def _assert_matrix_invariants(matrix: dict) -> None:
         )
 
 
-def create_entries(client: HAClient, matrix: dict, species_field: str, flow_version: int) -> list[dict]:
+def create_entries(
+    client: HAClient, matrix: dict, species_field: str, flow_version: int,
+) -> list[dict]:
     log("creating diagnostic entries:")
     created: list[dict] = []
     for e in matrix["entries"]:
@@ -319,14 +333,17 @@ def create_entries(client: HAClient, matrix: dict, species_field: str, flow_vers
             die(f"failed to create entry {e['name']}")
         # Apply options-flow (sources etc).
         if e.get("options"):
-            log(f"    applying options-flow")
+            log("    applying options-flow")
             if not submit_pollenwatch_options(
                 client, entry_id,
                 species=e["species"],
                 species_field=species_field,
                 options=e["options"],
             ):
-                log(f"    WARN options-flow did not create_entry for {e['name']}; entry exists but options may be defaults")
+                log(
+                    f"    WARN options-flow did not create_entry for {e['name']}; "
+                    f"entry exists but options may be defaults"
+                )
         created.append({"name": e["name"], "entry_id": entry_id, "species": e["species"]})
         log(f"  ok   created {e['name']} entry_id={entry_id}")
     return created
@@ -355,7 +372,10 @@ def main() -> int:
         )
     baseline_spec = pinned["versions"][baseline]
     species_field = baseline_spec["species_field"]
-    log(f"baseline: {baseline} (flow_version={baseline_spec['flow_version']}, species_field={species_field!r})")
+    log(
+        f"baseline: {baseline} (flow_version={baseline_spec['flow_version']}, "
+        f"species_field={species_field!r})"
+    )
 
     info = preflight()
 
@@ -363,12 +383,15 @@ def main() -> int:
     run_dir = ROOT / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     container_name = _container_name(run_id)
-    log(f"run_id={run_id}  run_dir={run_dir.relative_to(REPO_ROOT)}  container={container_name}  port={PORT}")
+    log(
+        f"run_id={run_id}  run_dir={run_dir.relative_to(REPO_ROOT)}  "
+        f"container={container_name}  port={PORT}"
+    )
 
     # Persist run meta early — upgrade.py + verify.py + cleanup.py read it.
     meta = {
         "run_id": run_id,
-        "started_iso": datetime.now(timezone.utc).isoformat(),
+        "started_iso": datetime.now(UTC).isoformat(),
         "container_name": container_name,
         "port": PORT,
         "baseline": baseline,
@@ -434,7 +457,11 @@ def main() -> int:
     wait_for_ha(client, timeout=120)
 
     # Create the diagnostic entries.
-    create_entries(client, matrix, species_field=species_field, flow_version=baseline_spec["flow_version"])
+    create_entries(
+        client, matrix,
+        species_field=species_field,
+        flow_version=baseline_spec["flow_version"],
+    )
     # Now that entries exist, the component should be loaded — sanity check.
     wait_for_component(client, "pollenwatch", timeout=30)
 
@@ -446,7 +473,10 @@ def main() -> int:
     before_dir = run_dir / "snapshots" / "before"
     snap_meta = take_snapshot(client, ws, before_dir, container_name, run_id,
                               config_dir=run_dir / "config", since=None)
-    log(f"  ok   snapshot: {snap_meta['pw_entity_count']} entities, {snap_meta['pw_config_entry_count']} entries")
+    log(
+        f"  ok   snapshot: {snap_meta['pw_entity_count']} entities, "
+        f"{snap_meta['pw_config_entry_count']} entries"
+    )
 
     # Final summary.
     log("bootstrap complete.")

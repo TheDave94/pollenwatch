@@ -11,7 +11,7 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -57,7 +57,7 @@ def main() -> int:
     # HACS wrote the installed copy as root inside the container — we need
     # sudo to overwrite. Assumes passwordless sudo (the cleanroom-pretag
     # docs document this as a prerequisite).
-    log(f"rsync HEAD (via sudo, files inside bind-mount are root-owned):")
+    log("rsync HEAD (via sudo, files inside bind-mount are root-owned):")
     log(f"  {src} → {dst}")
     res = subprocess.run(
         ["sudo", "rsync", "-a", "--delete", "--exclude", "__pycache__", "--exclude", "*.pyc",
@@ -69,7 +69,7 @@ def main() -> int:
     log("  ok   HEAD synced")
 
     # Record the upgrade moment — used as --since for AFTER log capture.
-    upgrade_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    upgrade_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
 
     # 2. Restart container; poll for HA up and pollenwatch loaded.
     log(f"restarting container {container}")
@@ -82,7 +82,10 @@ def main() -> int:
     log("  polling for pollenwatch component loaded...")
     t0 = time.monotonic()
     if not client.wait_for_component("pollenwatch", timeout=60):
-        die("pollenwatch component did not load within 60s post-upgrade (gate would fail anyway — surfacing here)")
+        die(
+            "pollenwatch component did not load within 60s post-upgrade "
+            "(gate would fail anyway — surfacing here)"
+        )
     log(f"  ok   pollenwatch loaded in {time.monotonic() - t0:.1f}s")
 
     # 3. Settle — poll for refresh, 90s ceiling.
@@ -92,25 +95,36 @@ def main() -> int:
     last_unready = -1
     while time.monotonic() < deadline:
         all_states = client.all_states()
-        pw_states = [s for s in all_states if s.get("entity_id", "").startswith(("sensor.pollenwatch_", "binary_sensor.pollenwatch_"))]
+        pw_states = [
+            s for s in all_states
+            if s.get("entity_id", "").startswith(
+                ("sensor.pollenwatch_", "binary_sensor.pollenwatch_")
+            )
+        ]
         if pw_states:
             unready = [s for s in pw_states if s.get("state") in (None, "unknown")]
             if len(unready) != last_unready:
-                log(f"    {len(pw_states) - len(unready)}/{len(pw_states)} ready (waiting on {len(unready)})")
+                log(
+                    f"    {len(pw_states) - len(unready)}/{len(pw_states)} ready "
+                    f"(waiting on {len(unready)})"
+                )
                 last_unready = len(unready)
             if not unready:
                 log(f"  ok   refresh complete in {time.monotonic() - t0:.1f}s")
                 break
         time.sleep(3)
     else:
-        log(f"  WARN refresh ceiling hit; proceeding (verifier may catch downstream issues)")
+        log("  WARN refresh ceiling hit; proceeding (verifier may catch downstream issues)")
 
     # 4. AFTER snapshot — include only post-upgrade logs.
     log("taking AFTER snapshot:")
     after_dir = run_dir / "snapshots" / "after"
     snap = take_snapshot(client, ws, after_dir, container, meta["run_id"],
                          config_dir=run_dir / "config", since=upgrade_iso)
-    log(f"  ok   snapshot: {snap['pw_entity_count']} entities, {snap['pw_config_entry_count']} entries")
+    log(
+        f"  ok   snapshot: {snap['pw_entity_count']} entities, "
+        f"{snap['pw_config_entry_count']} entries"
+    )
 
     print(f"\nRUN_DIR: {run_dir}")
     print(f"NEXT:    python3 cleanroom/verify.py {run_dir.relative_to(REPO_ROOT)}")

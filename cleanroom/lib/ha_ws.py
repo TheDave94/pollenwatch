@@ -16,10 +16,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
 
 import websockets
-
 
 _MAX_SIZE = 20 * 1024 * 1024  # see module docstring
 

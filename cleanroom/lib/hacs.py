@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
 
 from .ha_ws import HAWebSocket
 
@@ -47,7 +46,7 @@ async def list_repositories(ws: HAWebSocket) -> list[dict]:
     return r[0]["result"]
 
 
-async def find_repository(ws: HAWebSocket, full_name: str) -> Optional[dict]:
+async def find_repository(ws: HAWebSocket, full_name: str) -> dict | None:
     """Find a repo by `full_name` (e.g. 'TheDave94/pollenwatch'). Returns the
     repo dict (with .id, .installed_version, etc.) or None."""
     repos = await list_repositories(ws)
@@ -88,7 +87,7 @@ async def add_repository(ws: HAWebSocket, full_name: str, category: str = "integ
 
 async def wait_for_repository_registered(
     ws: HAWebSocket, full_name: str, timeout: int = 60, poll: float = 3.0
-) -> Optional[dict]:
+) -> dict | None:
     """Poll find_repository until the repo appears with a numeric .id (HACS
     has finished registering it). Returns the repo dict or None on timeout."""
     deadline = time.monotonic() + timeout
@@ -133,9 +132,16 @@ async def wait_for_downloaded(
     while time.monotonic() < deadline:
         repo = await find_repository(ws, full_name)
         if repo:
-            state = (repo.get("installed_version"), repo.get("available_version"), repo.get("downloaded"))
+            state = (
+                repo.get("installed_version"),
+                repo.get("available_version"),
+                repo.get("downloaded"),
+            )
             if state != last_state:
-                print(f"    HACS state: installed_version={state[0]!r} available_version={state[1]!r} downloaded={state[2]}")
+                print(
+                    f"    HACS state: installed_version={state[0]!r} "
+                    f"available_version={state[1]!r} downloaded={state[2]}"
+                )
                 last_state = state
             if state[0] == version:
                 return True
