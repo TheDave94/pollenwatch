@@ -27,10 +27,12 @@ User-level `~/.claude/CLAUDE.md` has the general output discipline (Bash caps, r
 
 - `custom_components/pollenwatch/` — HA integration code (Python).
   - `coordinator.py` — per-source `DataUpdateCoordinator`s.
-  - `sensor.py` — sensor entities (one per species per source + consensus / divergence analytics entities).
+  - `sensor.py` — raw + recent_percentile + personal_score + consensus sensor entities (one per species per source for the per-source ones; one per species for consensus).
+  - `binary_sensor.py` — divergence binary_sensor entities (one per multi-source species; flags when sources disagree by >1 level).
   - `config_flow.py` — onboarding + options flow (region-aware species preselection).
-  - `analytics.py` — cross-source consensus, divergence flagging, recent percentile.
-  - `species_registry.py` — canonical species keys (24 EU species, expanded from 6).
+  - `analytics.py` — cross-source consensus, divergence flagging, recent percentile, level/level_label bucketing.
+  - `region_defaults.py` — per-PI-country species preselection table for the v2.0+ onboarding (Central EU vs Mediterranean vs Nordic vs UK).
+  - `sources/species_registry.py` — canonical species keys (24 EU species, expanded from 6; 5-value threshold_status enum per v2.2 / issue #3).
   - `frontend/` — Lovelace card + 24 species duotone icons.
 - `brand/assets/species/` — source SVGs for the icons (sync target: `frontend/icons/`).
 - `tests/` — pytest unit + integration tests.
