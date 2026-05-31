@@ -250,11 +250,11 @@ async def _hacs_install(ws: HAWebSocket, full_name: str, version: str) -> None:
     log(f"  ok   {full_name}@{version} downloaded to /config/custom_components/pollenwatch/")
 
 
-def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
+def wait_for_coordinator_refresh(client: HAClient, timeout: int = 180) -> None:
     """Poll until every pollenwatch entity has a non-null state AND the count
-    is stable across consecutive polls. Returns True on success, False on
-    timeout (caller decides whether ceiling-hit is fatal — for the v1
-    cleanroom it is WARN+proceed).
+    is stable across consecutive polls. On ceiling-hit: die() with exit
+    code 10 (distinct from any verify.py gate exit, distinct from generic
+    die's exit 1).
 
     Two checks required before declaring complete (avoids a race where the
     analytics coordinator finishes first, all its few entities have a state,
@@ -263,6 +263,12 @@ def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
       (a) every currently-loaded pw entity has a non-null state
       (b) entity count is STABLE across at least 2 consecutive polls
           (i.e. no new entities arrived since the last poll)
+
+    On ceiling-hit: previously this WARNed-and-returned-False; main() then
+    proceeded to BEFORE snapshot on partial state, and Gate C cascade-failed
+    on state=None entities. The fix: surface a distinct "SETTLE TIMEOUT"
+    fatal error so the cleanroom doesn't conflate infrastructure slowness
+    with migration regression. Snapshot is NEVER taken on partial settle.
     """
     log(
         f"  polling for coordinator first-refresh (every pw entity has a state, "
@@ -308,10 +314,16 @@ def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
                 f"{time.monotonic() - t0:.1f}s ({current_count} entities, "
                 f"count stable across {stable_polls + 1} polls)"
             )
-            return True
+            return
         time.sleep(3)
-    log(f"  WARN coordinator first-refresh did not complete within {timeout}s; proceeding")
-    return False
+    die(
+        f"SETTLE TIMEOUT: did not reach stable entity state in "
+        f"{timeout}s (BEFORE-snapshot settle). This is an "
+        f"infrastructure/timing failure, NOT a migration regression. "
+        f"Re-run; if it persists, raise the ceiling or investigate "
+        f"runner performance. Snapshot NOT taken — gates will not run.",
+        code=10,
+    )
 
 
 # ---------- entry creation ----------

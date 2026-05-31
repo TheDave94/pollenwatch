@@ -88,7 +88,7 @@ def main() -> int:
         )
     log(f"  ok   pollenwatch loaded in {time.monotonic() - t0:.1f}s")
 
-    # 3. Settle — poll for refresh, 90s ceiling.
+    # 3. Settle — poll for refresh, 180s ceiling.
     #
     # Two checks required before declaring complete (avoids a race where the
     # analytics coordinator finishes first, all its few entities have a state,
@@ -98,12 +98,22 @@ def main() -> int:
     #   (b) entity count is STABLE across at least 2 consecutive polls
     #       (i.e. no new entities arrived since the last poll)
     # Both conditions must hold simultaneously.
+    #
+    # On ceiling-hit: FAIL LOUDLY with a distinct exit code (10), with a
+    # message that names this as an infrastructure/timing failure — NOT a
+    # migration regression. Previously the harness WARNed-and-proceeded,
+    # took a partial snapshot, and Gate C then failed on state=None
+    # entities — conflating two distinct failure modes ("settle was too
+    # slow" vs "migration broke entity health"). The fix: never take a
+    # snapshot on a partial settle; surface the timeout cleanly so a
+    # required-check gate can distinguish flakes from real regressions.
+    SETTLE_CEILING = 180
     log(
-        "polling for coordinator first-refresh post-upgrade "
-        "(ceiling 90s, stable-count required)..."
+        f"polling for coordinator first-refresh post-upgrade "
+        f"(ceiling {SETTLE_CEILING}s, stable-count required)..."
     )
     t0 = time.monotonic()
-    deadline = t0 + 90
+    deadline = t0 + SETTLE_CEILING
     last_unready = -1
     prev_count = -1
     stable_polls = 0
@@ -138,7 +148,14 @@ def main() -> int:
                 break
         time.sleep(3)
     else:
-        log("  WARN refresh ceiling hit; proceeding (verifier may catch downstream issues)")
+        die(
+            f"SETTLE TIMEOUT: did not reach stable entity state in "
+            f"{SETTLE_CEILING}s (post-upgrade settle). This is an "
+            f"infrastructure/timing failure, NOT a migration regression. "
+            f"Re-run; if it persists, raise the ceiling or investigate "
+            f"runner performance. Snapshot NOT taken — gates will not run.",
+            code=10,
+        )
 
     # 4. AFTER snapshot — include only post-upgrade logs.
     log("taking AFTER snapshot:")
