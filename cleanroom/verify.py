@@ -174,26 +174,49 @@ def gate_a_schema(before: dict, after: dict, meta: dict, out: io.StringIO) -> bo
 
 
 def gate_b_entity_pairs(before: dict, after: dict, out: io.StringIO) -> bool:
-    """Gate B: (entity_id, unique_id) PAIRS preserved."""
-    out.write("\n=== Gate B — (entity_id, unique_id) pairs preserved ===\n")
+    """Gate B — entity preservation (NO-LOSS semantics, not strict equality).
+
+    Gate B guarantees users do not LOSE entities on upgrade: every pre-upgrade
+    (entity_id, unique_id) pair must still exist post-upgrade. That's the only
+    safety-critical assertion — a missing pair means a user's dashboards,
+    automations, and history references silently break.
+
+    Feature releases legitimately ADD entity surface — e.g. Phase F's
+    consensus-per-selected-species design adds a consensus analytics sensor for
+    every selected species (previously only multi-source species had one).
+    Those additions are surfaced as a WARN (informational) so the operator
+    sees them in the report, but they do NOT fail the gate.
+
+    Semantics:
+      * lost > 0  → FAIL (preservation guarantee broken; investigate)
+      * gained > 0 only → PASS with WARN block listing the gained pairs
+      * gained == 0 and lost == 0 → PASS (no churn)
+
+    When a release adds entities INTENTIONALLY (a feature-add), the WARN is
+    your confirmation that the harness saw it; review the list and move on.
+    When a release adds entities UNINTENTIONALLY (a bug duplicating entities,
+    a typo in unique_id construction), the WARN is your early-warning that
+    something changed — verify it's intentional before tagging.
+    """
+    out.write("\n=== Gate B — entity preservation (no-loss) ===\n")
     b_ents = before["entity_registry"]
     a_ents = after["entity_registry"]
     b_pairs = {(e["entity_id"], e.get("unique_id")) for e in b_ents}
     a_pairs = {(e["entity_id"], e.get("unique_id")) for e in a_ents}
     out.write(f"  before: {len(b_pairs)} pollenwatch (entity_id, unique_id) pairs\n")
     out.write(f"  after:  {len(a_pairs)} pollenwatch (entity_id, unique_id) pairs\n")
+
     lost = b_pairs - a_pairs
     gained = a_pairs - b_pairs
-    if not lost and not gained:
-        out.write("  Gate B: PASS — pair set identical\n")
-        return True
-    # Differential reporting: classify each lost pair.
-    b_by_eid = {e["entity_id"]: e.get("unique_id") for e in b_ents}
+
+    # Classify any lost pair for diagnostics.
     a_by_eid = {e["entity_id"]: e.get("unique_id") for e in a_ents}
-    b_by_uid = {e.get("unique_id"): e["entity_id"] for e in b_ents if e.get("unique_id")}
     a_by_uid = {e.get("unique_id"): e["entity_id"] for e in a_ents if e.get("unique_id")}
+    b_by_eid = {e["entity_id"]: e.get("unique_id") for e in b_ents}
+    b_by_uid = {e.get("unique_id"): e["entity_id"] for e in b_ents if e.get("unique_id")}
+
     if lost:
-        out.write(f"  LOST pairs ({len(lost)}):\n")
+        out.write(f"  LOST pairs ({len(lost)}) — preservation broken:\n")
         for eid, uid in sorted(lost):
             cause = "entity lost entirely"
             if eid in a_by_eid and a_by_eid[eid] != uid:
@@ -201,8 +224,10 @@ def gate_b_entity_pairs(before: dict, after: dict, out: io.StringIO) -> bool:
             elif uid in a_by_uid and a_by_uid[uid] != eid:
                 cause = f"entity_id renamed: {eid!r} → {a_by_uid[uid]!r}"
             out.write(f"    - ({eid}, {uid})  — {cause}\n")
+
     if gained:
-        out.write(f"  GAINED pairs ({len(gained)}):\n")
+        out.write(f"  WARN: {len(gained)} new (entity_id, unique_id) pair(s) post-upgrade "
+                  f"(informational, not a failure):\n")
         for eid, uid in sorted(gained):
             cause = "new entity (not in before)"
             if eid in b_by_eid:
@@ -210,8 +235,19 @@ def gate_b_entity_pairs(before: dict, after: dict, out: io.StringIO) -> bool:
             elif uid and uid in b_by_uid:
                 cause = f"entity_id renamed for existing unique_id"
             out.write(f"    + ({eid}, {uid})  — {cause}\n")
-    out.write("  Gate B: FAIL\n")
-    return False
+        out.write(f"  Review the WARN list above: legitimate feature-adds (e.g. Phase F\n")
+        out.write(f"  consensus-per-species) are expected. Unintentional duplications or\n")
+        out.write(f"  unique_id typos look the same in this output — check the diff before\n")
+        out.write(f"  tagging.\n")
+
+    if lost:
+        out.write("  Gate B: FAIL (preservation guarantee broken — see LOST list)\n")
+        return False
+    if gained:
+        out.write("  Gate B: PASS (no loss; gains surfaced above as WARN)\n")
+    else:
+        out.write("  Gate B: PASS — pair set identical\n")
+    return True
 
 
 def gate_c_health(after: dict, out: io.StringIO) -> bool:
