@@ -1,0 +1,41 @@
+{
+  "_doc": "The two diagnostic config entries the bootstrap creates. AT LEAST TWO entries required; AT LEAST ONE must be a subset (fewer than the full canonical species). bootstrap.py asserts this — see cleanroom/bootstrap.py:_assert_matrix_invariants. The subset entry (B) is the diagnostic that distinguishes 'migration preserved selection' from 'reset to default-6'. An all-6-only test proves nothing.",
+
+  "canonical_v1_species": ["alder", "birch", "grass", "mugwort", "olive", "ragweed"],
+
+  "entries": [
+    {
+      "name": "munich-all-6",
+      "location_label": "Munich",
+      "latitude": 48.1351,
+      "longitude": 11.5820,
+      "species": ["alder", "birch", "grass", "mugwort", "olive", "ragweed"],
+      "options": {
+        "enable_open_meteo": true,
+        "enable_dwd": true,
+        "dwd_region": "121",
+        "enable_polleninformation": false,
+        "enable_meteoswiss": false,
+        "enable_epin": false,
+        "enable_google": false
+      },
+      "_role": "common-case: all-6 canonical species, multi-source. Validates the happy path."
+    },
+    {
+      "name": "graz-subset-grass-birch",
+      "location_label": "Graz",
+      "latitude": 47.0707,
+      "longitude": 15.4395,
+      "species": ["grass", "birch"],
+      "options": {
+        "enable_open_meteo": true,
+        "enable_dwd": false,
+        "enable_polleninformation": false,
+        "enable_meteoswiss": false,
+        "enable_epin": false,
+        "enable_google": false
+      },
+      "_role": "DIAGNOSTIC: subset selection. THIS ENTRY IS NON-OPTIONAL. If migration silently resets to default-6, only Entry B catches it. Gate D asserts this entry's selection survives identical post-upgrade."
+    }
+  ]
+}

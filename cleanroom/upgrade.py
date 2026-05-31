@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""Clean-room upgrade: rsync HEAD pollenwatch over the cleanroom's installed
+copy, restart, settle, take AFTER snapshot.
+
+Usage:
+  python3 cleanroom/upgrade.py cleanroom/runs/<run_id>/
+"""
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from lib.ha_api import HAClient  # noqa: E402
+from lib.ha_ws import HAWebSocket  # noqa: E402
+from lib.snapshot import take_snapshot  # noqa: E402
+
+ROOT = Path(__file__).parent
+REPO_ROOT = ROOT.parent
+
+
+def log(msg: str) -> None:
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def die(msg: str, code: int = 1) -> None:
+    print(f"FATAL: {msg}", file=sys.stderr, flush=True)
+    sys.exit(code)
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        die(f"usage: {sys.argv[0]} <run-dir>")
+    run_dir = Path(sys.argv[1]).resolve()
+    if not (run_dir / "meta.json").exists():
+        die(f"{run_dir}/meta.json not found — is this a bootstrap'd run dir?")
+    meta = json.loads((run_dir / "meta.json").read_text())
+    container = meta["container_name"]
+    port = meta["port"]
+    base_url = f"http://127.0.0.1:{port}"
+    token = (run_dir / "access-token.txt").read_text().strip()
+    client = HAClient(base_url, token=token)
+    ws = HAWebSocket(base_url, token)
+
+    # 1. rsync HEAD code over the installed copy.
+    src = REPO_ROOT / "custom_components" / "pollenwatch"
+    dst = run_dir / "config" / "custom_components" / "pollenwatch"
+    if not src.exists():
+        die(f"HEAD source not found at {src}")
+    if not dst.exists():
+        die(f"installed copy not found at {dst} — did bootstrap complete successfully?")
+    # HACS wrote the installed copy as root inside the container — we need
+    # sudo to overwrite. Assumes passwordless sudo (the cleanroom-pretag
+    # docs document this as a prerequisite).
+    log(f"rsync HEAD (via sudo, files inside bind-mount are root-owned):")
+    log(f"  {src} → {dst}")
+    res = subprocess.run(
+        ["sudo", "rsync", "-a", "--delete", "--exclude", "__pycache__", "--exclude", "*.pyc",
+         str(src) + "/", str(dst) + "/"],
+        capture_output=True, text=True, check=False,
+    )
+    if res.returncode != 0:
+        die(f"rsync failed (rc={res.returncode}):\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+    log("  ok   HEAD synced")
+
+    # Record the upgrade moment — used as --since for AFTER log capture.
+    upgrade_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+    # 2. Restart container; poll for HA up and pollenwatch loaded.
+    log(f"restarting container {container}")
+    subprocess.run(["docker", "restart", container], capture_output=True, check=True)
+    log("  polling for HA up...")
+    t0 = time.monotonic()
+    if not client.wait_until_up(timeout=120):
+        die("HA did not come up within 120s post-upgrade restart")
+    log(f"  ok   HA up in {time.monotonic() - t0:.1f}s")
+    log("  polling for pollenwatch component loaded...")
+    t0 = time.monotonic()
+    if not client.wait_for_component("pollenwatch", timeout=60):
+        die("pollenwatch component did not load within 60s post-upgrade (gate would fail anyway — surfacing here)")
+    log(f"  ok   pollenwatch loaded in {time.monotonic() - t0:.1f}s")
+
+    # 3. Settle — poll for refresh, 90s ceiling.
+    log("polling for coordinator first-refresh post-upgrade (ceiling 90s)...")
+    t0 = time.monotonic()
+    deadline = t0 + 90
+    last_unready = -1
+    while time.monotonic() < deadline:
+        all_states = client.all_states()
+        pw_states = [s for s in all_states if s.get("entity_id", "").startswith(("sensor.pollenwatch_", "binary_sensor.pollenwatch_"))]
+        if pw_states:
+            unready = [s for s in pw_states if s.get("state") in (None, "unknown")]
+            if len(unready) != last_unready:
+                log(f"    {len(pw_states) - len(unready)}/{len(pw_states)} ready (waiting on {len(unready)})")
+                last_unready = len(unready)
+            if not unready:
+                log(f"  ok   refresh complete in {time.monotonic() - t0:.1f}s")
+                break
+        time.sleep(3)
+    else:
+        log(f"  WARN refresh ceiling hit; proceeding (verifier may catch downstream issues)")
+
+    # 4. AFTER snapshot — include only post-upgrade logs.
+    log("taking AFTER snapshot:")
+    after_dir = run_dir / "snapshots" / "after"
+    snap = take_snapshot(client, ws, after_dir, container, meta["run_id"], since=upgrade_iso)
+    log(f"  ok   snapshot: {snap['pw_entity_count']} entities, {snap['pw_config_entry_count']} entries")
+
+    print(f"\nRUN_DIR: {run_dir}")
+    print(f"NEXT:    python3 cleanroom/verify.py {run_dir.relative_to(REPO_ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,27 @@
+{
+  "_doc": "The baseline pollenwatch version the cleanroom test installs FIRST, before upgrading to HEAD. Default is v1.3.0 — the last released version before the v3 schema migration. Override with --baseline <tag> for smoke runs or future baselines.",
+
+  "default_baseline": "v1.3.0",
+
+  "versions": {
+    "v1.3.0": {
+      "flow_version": 2,
+      "species_field": "allergens",
+      "notes": "Last v1.x release. Config-entry VERSION=2; flow field is the legacy 'allergens' key. Migration to HEAD will run v2→v3 (renames allergens → selected_species in options)."
+    },
+    "v2.0.0": {
+      "flow_version": 3,
+      "species_field": "selected_species",
+      "notes": "First v3-schema release. VERSION=3. Config-flow is TWO-step (user→species). Migration target for v1.x baselines."
+    },
+    "v2.1.0": {
+      "flow_version": 3,
+      "species_field": "selected_species",
+      "notes": "HEAD as of 2026-05-31 (authoritative level attribute + silver-rule cleanup + full entity translations). VERSION=3, same TWO-step flow shape as v2.0.0. Default smoke target."
+    }
+  },
+
+  "head_flow_version": 3,
+
+  "_when_to_update": "Add a new entry under 'versions' when a new release is tagged AND its flow VERSION or species field changed. Bootstrap errors loudly on unknown baseline tag. Don't change 'default_baseline' without a deliberate reason — it's what 'make cleanroom-pretag' uses with no override."
+}
