@@ -244,7 +244,7 @@ class PollenWatchSensor(
         self._allergen = allergen
         self._source_key = source_key
         entry = coordinator.config_entry
-        self._attr_unique_id = f"{entry.entry_id}_{source_key}_{allergen}_PROOF"
+        self._attr_unique_id = f"{entry.entry_id}_{source_key}_{allergen}"
         self._attr_translation_key = allergen
         # Fallback name (used if no strings.json translation exists for the
         # allergen — every v2.0+ new species). Without this, HA can't slugify
