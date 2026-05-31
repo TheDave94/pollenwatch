@@ -1,0 +1,7 @@
+{
+  "hacs_version": "2.0.5",
+  "zip_filename": "hacs-2.0.5.zip",
+  "sha256": "5c08ed38514732e292e5968ae7c798f13203c9d97e33c8b92b049ba70e5a073b",
+  "size_bytes": 18813897,
+  "_doc": "DELIBERATE PIN. See cleanroom/README.md \u00a7'The HACS pin \u2014 DELIBERATE, not tracked'. Do not bump to track upstream HACS releases. Bump ONLY if a HACS change breaks bootstrap."
+}

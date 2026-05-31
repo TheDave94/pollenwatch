@@ -22,3 +22,8 @@ env/
 .vscode/
 *.swp
 .DS_Store
+
+# Cleanroom — per-run state (snapshots / logs / config bind-mount / tokens).
+# The runs/.gitkeep stub stays.
+cleanroom/runs/*
+!cleanroom/runs/.gitkeep
