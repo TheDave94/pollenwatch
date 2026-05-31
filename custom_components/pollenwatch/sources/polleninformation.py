@@ -3,13 +3,13 @@
 Optional second source (14-ish European countries; 13 currently supported). It
 serves a **daily 0–4 contamination index** per allergen for 4 days — not the
 hourly grains/m³ Open-Meteo gives — so values are kept on their native index
-scale here; the milestone-3b analytics layer normalises across sources.
+scale here; the analytics layer normalises across sources.
 
 HA-free like the rest of the source layer: aiohttp is imported lazily, and the
 transport is injectable for tests (which use a placeholder key, never the real
 one).
 
-API shape (verified by live probe, see MILESTONE_3.md §5):
+API shape (verified by live probe):
     GET https://www.polleninformation.at/api/forecast/public
         ?country=<ISO-2>&lang=<ISO-639-1>&latitude=&longitude=&apikey=
     -> {"contamination": [{poll_id, poll_title, contamination_1..4}, ...],
@@ -121,7 +121,7 @@ class PolleninformationSource:
         if allergens is None:
             return [a for a in ALLERGENS if a in mapped]
         # Silently drop allergens this source can't provide (global selection
-        # is mapped onto each source's capabilities — see MILESTONE_3 A2).
+        # is mapped onto each source's capabilities).
         return [a for a in allergens if a in mapped]
 
     def _params(self) -> dict[str, str]:
