@@ -101,15 +101,6 @@ async def async_migrate_entry(
                 "species list; falling back to canonical v1 set",
                 entry.entry_id,
             )
-        # PROOF (will revert): drop "olive" from the migrated species list.
-        # In the cleanroom matrix, the munich-all-6 entry has olive selected
-        # at v1.3.0 baseline. With this drop, the migrated config arrives at
-        # HEAD without olive in selected_species → sensor.py's
-        # _async_remove_deconfigured_entities removes the olive raw + derived
-        # entities + olive_consensus from the entity_registry → Gate B sees
-        # those (entity_id, unique_id) pairs as LOST. This is the real
-        # entity-loss case Gate B exists to catch.
-        species_list = [s for s in species_list if s != "olive"]
         # Always write the new key; clean up any stale legacy key in
         # both data and options (idempotency).
         options[CONF_SELECTED_SPECIES] = species_list
