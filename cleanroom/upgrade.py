@@ -88,6 +88,39 @@ def main() -> int:
         )
     log(f"  ok   pollenwatch loaded in {time.monotonic() - t0:.1f}s")
 
+    # 2b. Wait for ALL pollenwatch config entries to be in state="loaded".
+    #
+    # `wait_for_component` returns as soon as ONE entry is loaded — HA's
+    # `pollenwatch in components` flips on the first entry's setup. But HA
+    # processes config entries SERIALLY, so the second entry may still be
+    # mid-setup. If the settle loop starts polling now, it observes only the
+    # first entry's entities, sees them all ready, declares done — and then
+    # the second entry's entities arrive AFTER the snapshot, with state=None,
+    # cascading into a Gate C "missing state object" failure.
+    #
+    # Fix: explicitly wait for ALL entries to reach state="loaded" before
+    # the settle loop runs.
+    log("  polling for all pollenwatch config entries loaded...")
+    t0 = time.monotonic()
+    entries_deadline = t0 + 60
+    while time.monotonic() < entries_deadline:
+        entries = client.list_config_entries(domain="pollenwatch")
+        if entries and all(e.get("state") == "loaded" for e in entries):
+            log(
+                f"  ok   {len(entries)} entries loaded in "
+                f"{time.monotonic() - t0:.1f}s"
+            )
+            break
+        time.sleep(2)
+    else:
+        die(
+            "Not all pollenwatch config entries reached state='loaded' "
+            "within 60s post-upgrade. HA serial-setup may be stuck on one "
+            "entry — investigate runner / HA boot. This is infrastructure, "
+            "NOT a migration regression.",
+            code=10,
+        )
+
     # 3. Settle — poll for refresh, 180s ceiling.
     #
     # Two checks required before declaring complete (avoids a race where the

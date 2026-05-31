@@ -501,6 +501,30 @@ def main() -> int:
     # Now that entries exist, the component should be loaded — sanity check.
     wait_for_component(client, "pollenwatch", timeout=30)
 
+    # Defense-in-depth (matches upgrade.py): wait for ALL pollenwatch entries
+    # to be in state="loaded" before settle, so the settle loop sees the
+    # full entity set rather than a mid-serialization subset. Less critical
+    # in bootstrap (entries are created synchronously via flow API) than in
+    # upgrade.py (where HA restarts and entries set up async), but safer.
+    log("  polling for all pollenwatch config entries loaded...")
+    t0 = time.monotonic()
+    entries_deadline = t0 + 60
+    while time.monotonic() < entries_deadline:
+        entries = client.list_config_entries(domain="pollenwatch")
+        if entries and all(e.get("state") == "loaded" for e in entries):
+            log(
+                f"  ok   {len(entries)} entries loaded in "
+                f"{time.monotonic() - t0:.1f}s"
+            )
+            break
+        time.sleep(2)
+    else:
+        die(
+            "Not all pollenwatch config entries reached state='loaded' "
+            "within 60s. Infrastructure issue, NOT a migration regression.",
+            code=10,
+        )
+
     # Settle. (180s ceiling, distinct SETTLE TIMEOUT fatal on ceiling-hit —
     # see wait_for_coordinator_refresh docstring.)
     wait_for_coordinator_refresh(client, timeout=180)
