@@ -141,9 +141,15 @@ def test_network_error_exhausts_retries_and_raises_unavailable():
     assert calls["n"] == 2  # tried exactly twice, no infinite loop
 
 
-def test_unknown_allergen_rejected_at_construction():
-    with pytest.raises(ValueError):
-        OpenMeteoSource(47.07, 15.44, ["grass", "ragweed", "dandelion"])
+def test_unknown_allergen_silent_dropped_at_construction():
+    """v2.0+: OM silent-drops allergens it doesn't cover (matching every
+    other source). The orchestrator passes the user's GLOBAL selection (24
+    species in v2+); OM takes only the 6 it can. Raising would block any
+    install selecting a v2 species OM doesn't cover (e.g. hazel)."""
+    source = OpenMeteoSource(
+        47.07, 15.44, ["grass", "ragweed", "hazel", "dandelion"]
+    )
+    assert source.allergens == ["grass", "ragweed"]
 
 
 def test_past_days_clamped_to_provider_maximum():

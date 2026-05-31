@@ -27,11 +27,13 @@ from .const import (
     ATTR_FORECAST,
     ATTR_GRID_SHIFT_KM,
     ATTR_LAST_UPDATED,
+    ATTR_MAX_SOURCES,
     ATTR_MULTIPLIER,
     ATTR_REQUESTED_LAT,
     ATTR_REQUESTED_LON,
     ATTR_SNAPPED_LAT,
     ATTR_SNAPPED_LON,
+    ATTR_SOURCE_COUNT,
     ATTRIBUTION_CAMS,
     CONF_SENSITIVITY,
     DEFAULT_SENSITIVITY,
@@ -47,8 +49,8 @@ from .coordinator import (
     PollenWatchConfigEntry,
     PollenWatchSourceCoordinator,
     _entry_option,
+    all_covered_species,
     analytics_device_info,
-    multi_source_species,
 )
 
 # All possible per-source slugs the integration could ever have created
@@ -127,17 +129,21 @@ async def async_setup_entry(
         if source_key not in active_sources:
             _async_remove_deconfigured_entities(hass, entry, source_key, set())
 
-    # Cross-source consensus: one per species that >= 2 sources currently cover.
-    multi_species: list[str] = []
+    # Cross-source consensus: one per species that >= 1 source currently
+    # covers (v2.0+ broadened from >= 2). Single-source species emit a
+    # pass-through consensus + n/m=1/x badge; the badge tells the user it's
+    # single-source, not the sensor's absence. DivergenceSensor (binary)
+    # still requires >= 2 — gated separately in binary_sensor.py.
+    covered_species: list[str] = []
     if analytics is not None:
-        multi_species = multi_source_species(runtime.coordinators)
-        for species in multi_species:
+        covered_species = all_covered_species(runtime.coordinators)
+        for species in covered_species:
             entities.append(ConsensusSensor(analytics, entry, species))
 
-    # Prune stale consensus sensors for species that dropped below the
-    # 2-source threshold (e.g. user disabled a source). Same orphan story
-    # as above, applied to the analytics device.
-    _async_remove_orphan_analytics(hass, entry, set(multi_species), "consensus")
+    # Prune stale consensus sensors for species no longer covered (e.g. user
+    # disabled the only source covering a species). Same orphan story as
+    # above, applied to the analytics device.
+    _async_remove_orphan_analytics(hass, entry, set(covered_species), "consensus")
 
     async_add_entities(entities)
 
@@ -221,6 +227,23 @@ class PollenWatchSensor(
         entry = coordinator.config_entry
         self._attr_unique_id = f"{entry.entry_id}_{source_key}_{allergen}"
         self._attr_translation_key = allergen
+        # Fallback name (used if no strings.json translation exists for the
+        # allergen — every v2.0+ new species). Without this, HA can't slugify
+        # the entity_id past the device prefix and entities end up as
+        # `sensor.pollenwatch_<source>` (collisions across allergens).
+        self._attr_name = ALLERGEN_NAMES.get(
+            allergen, allergen.replace("_", " ").title()
+        )
+        # Force entity_id to match the canonical species registry key
+        # (e.g. `plantago` not `plantain`, `carpinus` not `hornbeam`). One
+        # consistent rule across all 24: entity_id always ends in the
+        # canonical key. HA's has_entity_name auto-naming was unreliable
+        # here (some entities slugged correctly, others collapsed to the
+        # bare device id), and suggested_object_id was ignored for some
+        # combinations. Explicit assignment bypasses both — HA preserves
+        # existing entity_ids by unique_id lookup, so v1 species (already
+        # registered) are untouched.
+        self.entity_id = f"sensor.{DOMAIN}_{source_key}_{allergen}"
         self._attr_attribution = SOURCE_ATTRIBUTIONS.get(source_key, ATTRIBUTION_CAMS)
         # Unit comes from the source: grains/m³ for Open-Meteo, None (an ordinal
         # 0–4 index) for polleninformation — never fake a concentration unit.
@@ -298,6 +321,10 @@ class PersonalScoreSensor(
             f"{entry.entry_id}_{source_key}_{allergen}_personal_score"
         )
         self._attr_name = f"{ALLERGEN_NAMES.get(allergen, allergen)} personal score"
+        # Canonical-key entity_id (see PollenWatchSensor for rationale).
+        self.entity_id = (
+            f"sensor.{DOMAIN}_{source_key}_{allergen}_personal_score"
+        )
         series = coordinator.data.allergens.get(allergen)
         self._attr_native_unit_of_measurement = series.unit if series else None
         self._attr_device_info = _source_device_info(entry, source_key)
@@ -324,8 +351,10 @@ class ConsensusSensor(
     """Cross-source consensus level for one species (none/low/high/mixed).
 
     Categorical (ENUM) so it can report "mixed" when sources disagree by >1
-    level. The numeric agreed level and the per-source levels are attributes.
-    Unavailable when fewer than two sources currently cover the species.
+    level. v2.0+: also created for single-source species (pass-through level
+    + source_count=1 in attributes). Card uses ``source_count`` /
+    ``max_possible_sources`` to render the n/m badge — the honesty mechanism
+    that signals single-source vs cross-validated readings.
     """
 
     # Device-scoped entity ID: HA 2026.5 prefixes device-associated entities with
@@ -346,6 +375,8 @@ class ConsensusSensor(
         self._species = species
         self._attr_unique_id = f"{entry.entry_id}_consensus_{species}"
         self._attr_name = f"{ALLERGEN_NAMES.get(species, species)} consensus"
+        # Canonical-key entity_id (see PollenWatchSensor for rationale).
+        self.entity_id = f"sensor.{DOMAIN}_analytics_{species}_consensus"
         self._attr_device_info = analytics_device_info(entry)
 
     def _result(self):
@@ -353,13 +384,14 @@ class ConsensusSensor(
 
     @property
     def available(self) -> bool:
-        # Consensus needs >= 2 sources reporting now; otherwise unavailable
-        # rather than a single source masquerading as consensus.
+        # Available when at least one source is currently contributing. The
+        # n/m badge in attributes tells the user whether it's single-source
+        # or cross-validated; the sensor's presence is no longer the gate.
         result = self._result()
         return (
             super().available
             and result is not None
-            and len(result.source_levels) >= 2
+            and result.source_count >= 1
         )
 
     @property
@@ -375,6 +407,8 @@ class ConsensusSensor(
         return {
             ATTR_LEVEL: result.level,
             ATTR_SOURCE_LEVELS: result.source_levels,
+            ATTR_SOURCE_COUNT: result.source_count,
+            ATTR_MAX_SOURCES: result.max_possible,
         }
 
 
@@ -410,6 +444,10 @@ class RecentPercentileSensor(
         # English name (derived metrics aren't localised yet); the device-name
         # slug keeps the entity ID as pollenwatch_<source>_<allergen>_recent_percentile.
         self._attr_name = f"{ALLERGEN_NAMES.get(allergen, allergen)} recent percentile"
+        # Canonical-key entity_id (see PollenWatchSensor for rationale).
+        self.entity_id = (
+            f"sensor.{DOMAIN}_{source_key}_{allergen}_recent_percentile"
+        )
         self._attr_device_info = _source_device_info(entry, source_key)
 
     @property

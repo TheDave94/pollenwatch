@@ -18,7 +18,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ALLERGEN_NAMES
+from .const import ALLERGEN_NAMES, DOMAIN
 from .coordinator import (
     PollenWatchAnalyticsCoordinator,
     PollenWatchConfigEntry,
@@ -73,6 +73,9 @@ class DivergenceSensor(
         self._species = species
         self._attr_unique_id = f"{entry.entry_id}_divergence_{species}"
         self._attr_name = f"{ALLERGEN_NAMES.get(species, species)} divergence"
+        # Canonical-key entity_id — one rule across all 24 species so users
+        # iterating programmatically don't need a translation table.
+        self.entity_id = f"binary_sensor.{DOMAIN}_analytics_{species}_divergence"
         self._attr_device_info = analytics_device_info(entry)
 
     def _result(self):

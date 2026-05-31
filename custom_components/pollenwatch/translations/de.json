@@ -4,21 +4,31 @@
     "step": {
       "user": {
         "title": "PollenWatch-Standort hinzufügen",
-        "description": "Die Pollendaten stammen vom Copernicus Atmosphere Monitoring Service (CAMS) über Open-Meteo und decken Europa ab. Der Standort ist nach dem Einrichten fest — zum Ändern die Integration entfernen und neu hinzufügen.",
+        "description": "Die Pollendaten stammen vom Copernicus Atmosphere Monitoring Service (CAMS) über Open-Meteo (immer aktiv) und bis zu fünf optionalen regionalen Quellen, die in den Optionen nach der Einrichtung aktiviert werden können. Der Standort ist nach dem Einrichten fest — zum Ändern die Integration entfernen und neu hinzufügen.",
         "data": {
-          "location": "Standort",
-          "allergens": "Allergene"
+          "location": "Standort"
         },
         "data_description": {
-          "location": "Wähle den zu überwachenden Punkt. Open-Meteo rundet ihn auf die nächste Rasterzelle (~10 km).",
-          "allergens": "Für welche Pollenarten Sensoren erstellt werden sollen."
+          "location": "Wähle den zu überwachenden Punkt. Open-Meteo rundet ihn auf die nächste Rasterzelle (~10 km)."
+        }
+      },
+      "species": {
+        "title": "Zu trackende Pollenarten",
+        "description": "Für dein Land ({country}) typischerweise relevante Arten sind vorausgewählt ({default_count} von {available_count} verfügbaren). Aktiviere den 'kreuzvalidierten Kern' für die {core_count} am besten validierten Arten (Erle, Birke, Gräser, Hasel, Beifuß, Ambrosia, Olive, Esche) — eine sinnvolle Standardauswahl. Es erscheinen nur Arten, die mindestens eine an deinem Standort aktivierbare Quelle erfassen kann; aktiviere weitere Quellen in den Optionen, um mehr freizuschalten.",
+        "data": {
+          "selected_species": "Pollenarten",
+          "use_cross_validated_core": "Kreuzvalidierten Kern verwenden (überschreibt die Auswahl oben)"
+        },
+        "data_description": {
+          "selected_species": "Pro ausgewählte Art werden Sensoren je aktiver Quelle erstellt. Nicht ausgewählte Arten erzeugen keine Entitäten — hält die Installation schlank.",
+          "use_cross_validated_core": "Die 8 Arten mit hoher allergener Potenz UND Abdeckung durch mindestens 3 Quellen weltweit — sinnvoller Standard für alle, die nicht im Detail entscheiden wollen."
         }
       }
     },
     "error": {
       "out_of_coverage": "Dieser Standort liegt außerhalb der europäischen CAMS-Abdeckung. Wähle einen Standort innerhalb Europas.",
       "cannot_connect": "Open-Meteo konnte nicht erreicht werden. Prüfe deine Verbindung und versuche es erneut.",
-      "no_allergens": "Wähle mindestens ein Allergen aus."
+      "no_species": "Wähle mindestens eine Pollenart aus (oder aktiviere den kreuzvalidierten Kern)."
     },
     "abort": {
       "already_configured": "Dieser Standort ist bereits konfiguriert."
@@ -30,7 +40,7 @@
         "title": "PollenWatch-Optionen",
         "description": "Der Standort ist fest; zum Ändern die Integration entfernen und neu hinzufügen.",
         "data": {
-          "allergens": "Allergene",
+          "selected_species": "Pollenarten",
           "update_interval": "Aktualisierungsintervall (Minuten)",
           "enable_polleninformation": "polleninformation.at aktivieren (zweite Quelle)",
           "country": "Land (polleninformation)",
@@ -63,7 +73,7 @@
       }
     },
     "error": {
-      "no_allergens": "Wähle mindestens ein Allergen aus.",
+      "no_species": "Wähle mindestens eine Pollenart aus.",
       "country_required": "Wähle ein Land, um polleninformation zu aktivieren.",
       "api_key_required": "Gib den API-Schlüssel für die aktivierte Quelle ein.",
       "invalid_api_key": "Die Quelle hat den API-Schlüssel abgelehnt. Bitte prüfen und erneut versuchen.",

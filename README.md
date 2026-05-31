@@ -17,8 +17,15 @@ provider; PollenWatch instead **combines independent sources** and adds a
 > **PollenWatch is a personal project shared publicly.** Stable means the
 > maintainer relies on it daily. It ships a bundled Lovelace severity-gauge
 > card that is auto-registered on install — one HACS install delivers both.
-> See **[Known limitations](#known-limitations)** below for honest disclosure
-> of the open items. Issues welcome as time allows.
+> v2.0 expands tracked species from the original 6 to **24 canonical species
+> across trees, grasses, herbs and spores**; you pick which ones to materialize
+> as entities at setup (preselected from your country) and can change the
+> selection any time in **Options**. See **[Known limitations](#known-limitations)**
+> below for honest disclosure of the open items.
+>
+> **Existing v1.x installs upgrade losslessly:** the migration renames the
+> stored allergen key, preserves every entity_id, and does not change your
+> selection. No action required on your part.
 >
 > Minimum Home Assistant **2024.11.0** (see
 > [HA_COMPATIBILITY.md](HA_COMPATIBILITY.md) for the API audit).
@@ -53,11 +60,15 @@ provide a *forward forecast* (today + coming days). MeteoSwiss and ePIN are
 reading, with **no tomorrow value**, so their sensors show the current/most-recent
 reading and today's running peak rather than a multi-day outlook.
 
-PollenWatch tracks six canonical allergens — **alder, birch, grass, mugwort,
-olive, ragweed**. Not every source covers every one (DWD and ePIN have no olive;
-MeteoSwiss measures only alder, birch and grass; **Google is the only source that
-covers olive**); a source only produces sensors for the allergens it actually
-reports at your location.
+PollenWatch tracks **24 canonical species** spanning trees, grasses, herbs and
+one spore — covering everything any of the six sources can publish, plus the
+EAACI/D'Amato high- and moderate-potency set. Open-Meteo is the largest-coverage
+source (the CAMS-canonical 6); polleninformation, DWD, ePIN, MeteoSwiss and
+Google each add their own subset (e.g. ash, oak, hazel, rye, plane_tree, cypress,
+plantago, alternaria). At setup you choose which species to materialize as
+entities; the per-country preselection seeds a defensible starting set.
+A source only produces sensors for species it actually reports at your location.
+See [Entities](#entities) for the honest data-availability picture.
 
 ## Analytics
 
@@ -72,14 +83,18 @@ On top of the raw per-source sensors:
   gets no percentile (it still feeds consensus and gets a raw sensor).
 - **personal_score** — a source's raw value × your per-species sensitivity
   multiplier (0.0–2.0), for personal-threshold automations.
-- **consensus + divergence** *(cross-source)* — for any allergen ≥2 sources
-  cover. Sources are compared on a common **3-level scale derived from the
-  EAACI / Copernicus CAMS thresholds** (each source's native scale is bucketed
-  or collapsed onto it — see [ANALYTICS.md](ANALYTICS.md), where every threshold
-  is sourced, not invented). **consensus** is categorical — `none` / `low` /
-  `high` / `mixed` — and **divergence** is a binary flag that turns on when the
-  sources genuinely disagree. Note the [#1](https://github.com/TheDave94/pollenwatch/issues/1)
-  lone-higher edge above (now reachable with up to 5 sources).
+- **consensus + divergence** *(cross-source)* — sources are compared on a common
+  **3-level scale derived from the EAACI / Copernicus CAMS thresholds** (each
+  source's native scale is bucketed or collapsed onto it — see
+  [ANALYTICS.md](ANALYTICS.md), where every threshold is sourced, not invented).
+  **consensus** is categorical — `none` / `low` / `high` / `mixed` — and carries
+  `source_count` + `max_possible_sources` so the card can render the `n/m`
+  authority badge. A single-source species (`1/m`) gets a consensus reading
+  pass-through (no `mixed` is ever emitted) plus the card's visual humbling.
+  **divergence** is a binary flag, only emitted when ≥2 sources actually
+  disagree by more than one level. Note the
+  [#1](https://github.com/TheDave94/pollenwatch/issues/1) lone-higher edge
+  above (reachable when 3+ sources cover a species).
 
 ## Installation
 
@@ -93,19 +108,26 @@ PollenWatch is not in the default HACS store yet. Add it as a custom repository:
 
 ## Setup & configuration
 
-Initial setup (Open-Meteo):
+Setup is a two-step wizard with Open-Meteo on by default.
 
-- **Location** — pick the point to monitor on the map (defaults to your Home
-  Assistant location). Open-Meteo snaps it to the nearest ~10 km CAMS grid cell;
-  setup is refused if the location is outside CAMS European coverage.
-- **Allergens** — choose from alder, birch, grass, mugwort, olive, ragweed.
-- **Location is fixed** once set (to keep recorder history and the percentile
-  baseline coherent). To move it, remove and re-add the integration. You can add
-  PollenWatch more than once for several locations.
+**Step 1 — Location.** Pick the point to monitor on the map (defaults to your
+Home Assistant location). Open-Meteo snaps it to the nearest ~10 km CAMS grid
+cell; setup is refused if the location is outside CAMS European coverage.
+**Location is fixed once set** (to keep recorder history and the percentile
+baseline coherent). To move it, remove and re-add the integration. You can
+add PollenWatch more than once for several locations.
 
-In the integration's **options** (after setup) you can change allergens and the
-update interval, set **personal sensitivity** multipliers, and enable the
-optional sources:
+**Step 2 — Species.** A checkbox list of all 24 species, **preselected from
+your Home Assistant country** via the region-defaults table (e.g. AT/DE/CH
+get the Central-European set + ash/oak; IT/ES add olive/cypress/nettle_family;
+SE skips Mediterranean species; UK gets plane_tree). The maintainer's
+recommendation is the starting point — uncheck what you don't want, check
+extras that matter to you. `alternaria` (a fungal spore, not pollen) is the
+single deliberate opt-in: never preselected, available if you want it.
+
+In the integration's **Options** (after setup) you can change the selection
+and update interval, set **personal sensitivity** multipliers per species, and
+enable the optional sources:
 
 - **polleninformation.at** — toggle on, pick your country, and paste a free API
   key (requested from polleninformation.at). Stored encrypted in HA.
@@ -122,19 +144,63 @@ optional sources:
   payment method on file) — it is more involved than the other keys. Stored
   encrypted in HA. Google is consensus-only (no recent_percentile).
 
+Changing the selection later prunes any deselected species cleanly — the
+entities and their device are removed from the registry, not left as
+permanently-`unavailable` orphans.
+
 ## Entities
 
 Raw sensors live under a per-source device (e.g. "PollenWatch Open-Meteo",
 "PollenWatch MeteoSwiss", "PollenWatch ePIN"):
-`sensor.pollenwatch_<source>_<allergen>` (state = that source's current value;
+`sensor.pollenwatch_<source>_<species>` (state = that source's current value;
 attributes include a daily-peak forecast and provenance — and, for the
-station-based sources, the picked `station`). Source-specific derived sensors sit
-alongside them: `..._<allergen>_recent_percentile` and
-`..._<allergen>_personal_score`.
+station-based sources, the picked `station`). Source-specific derived sensors
+sit alongside them: `..._<species>_recent_percentile` and
+`..._<species>_personal_score`.
 
 The cross-source metrics live under a separate **"PollenWatch Analytics"**
-device: `sensor.pollenwatch_analytics_<allergen>_consensus` and
-`binary_sensor.pollenwatch_analytics_<allergen>_divergence`.
+device: `sensor.pollenwatch_analytics_<species>_consensus` (categorical
+none/low/high/mixed; carries `source_count` + `max_possible_sources` so the
+card can render the `n/m` badge) and
+`binary_sensor.pollenwatch_analytics_<species>_divergence` (binary flag, only
+emitted when ≥2 sources actually disagree).
+
+### How many entities will I see?
+
+The entity-count table below is a **ceiling, not a promise** — it's the count
+you'd get if every source you enable also covered every species you select.
+Real installations almost always fall under it because of the data-availability
+matrix.
+
+The formula has two parts:
+- **Per-source entities** = species × (3 if the source has recent_percentile, 2 if not). The five non-Google sources have percentile; Google omits it (its licence forbids storing forecasts).
+- **Analytics entities** = species × (2 if covered by ≥2 enabled sources: consensus + divergence; 1 if covered by 1: consensus only).
+
+| Selected species × sources enabled | Per-source ceiling | Analytics ceiling | Total ceiling |
+|---|---|---|---|
+| **6 species, 1 source** (Open-Meteo only) | 6 × 3 = 18 | 6 × 1 = 6 | **≤ 24** |
+| **6 species, 2 sources** (Open-Meteo + DWD) *— clean-room Munich; **measured 44** because DWD has no olive* | 6 × 3 × 2 = 36 | 6 × 2 = 12 | **≤ 48** |
+| **8 species, 4 sources** (AT default + DWD + ePIN, no Google) | 8 × 3 × 4 = 96 | 8 × 2 = 16 | **≤ 112** |
+| **+ adding Google** to any of the above | + species × 2 | unchanged | + species × 2 |
+
+A real install almost always lands well under the ceiling: actual coverage is
+sparse (e.g. ePIN measures plantago + urtica but not olive; DWD has no olive;
+MeteoSwiss only covers alder/birch/grass + beech). The clean-room verification
+above shows a worked example — Munich's 6 × 2 ceiling of 48 came in at 44 measured.
+
+**The honest data-availability picture (one paragraph):** not every species is
+reported by every source — the matrix is asymmetric by design (DWD covers
+Germany-relevant species, ePIN covers Bavaria-specific species like plantago
+and urtica, MeteoSwiss measures only alder/birch/grass and beech, Google adds
+olive globally). A species you've selected that **no enabled source covers at
+your location simply does not materialize an entity** — selection bounds the
+blowup; you don't get permanently-`unavailable` orphans. A species **one source
+covers** still gets a consensus entity (badge reads `1/n`, with the gauge in
+single-source mode — desaturated, with an explicit "single source" label, so the
+honesty gradient is visible at a glance). 9 of the 24 species have published
+EAACI/CAMS clinical thresholds; the remaining 15 are graded against
+related-family thresholds (the consensus is still categorical, just one tier
+softer in evidence) — see [ANALYTICS.md](ANALYTICS.md) for the full provenance.
 
 ## Dashboard card
 
@@ -144,7 +210,11 @@ Add it to any dashboard:
 
 ```yaml
 type: custom:pollenwatch-card
-species: grass            # one of: alder | birch | grass | mugwort | olive | ragweed
+species: grass            # any of the 24 canonical species keys
+                          # (alder, birch, grass, hazel, mugwort, olive, ragweed, rye,
+                          #  ash, oak, beech, carpinus, juglans, elm, plane_tree,
+                          #  cypress_family, holm_oak, plantago, urtica, nettle_family,
+                          #  rumex, chenopodium, asteraceae, alternaria)
 show_mixed_span: false    # optional; when true, the 'mixed' caption names
                           # the conflicting span (e.g. 'none–high · across 5 sources')
 expanded_default: false   # optional; show per-source breakdown expanded by default
@@ -152,11 +222,15 @@ expanded_default: false   # optional; show per-source breakdown expanded by defa
 
 The gauge has six honest states — `none`, `low`, `high`, `mixed`, `unknown`,
 `nodata` — with deliberately distinct treatments for missing data (gray, no
-needle) so an empty reading never visually resembles a safe-low one. See
-[`brand/GAUGE_SPEC.md`](brand/GAUGE_SPEC.md) for the full spec. Per-allergen
-breakdown is one click away — each source's native reading (grains/m³, DWD's
-7-point string, polleninformation's 0–4 index, Google's UPI 0–5) on demand.
-Adapts to HA's light + dark themes; brand severity ramp stays constant per spec.
+needle) so an empty reading never visually resembles a safe-low one. A small
+`n/m` badge in the top-right shows how many of your enabled sources currently
+cover this species; single-source readings (`1/m`) get a desaturated gauge plus
+an explicit "single source" label so the honesty gradient is visible at a
+glance. See [`brand/GAUGE_SPEC.md`](brand/GAUGE_SPEC.md) for the full spec.
+Per-species breakdown is one click away — each source's native reading
+(grains/m³, DWD's 7-point string, polleninformation's 0–4 index, Google's UPI
+0–5) on demand. Adapts to HA's light + dark themes; brand severity ramp stays
+constant per spec.
 
 ### Using the pollenprognos-card
 
@@ -200,6 +274,21 @@ maintainer uses daily.
   enabling one of those is its first real-world run. Please
   [open an issue](https://github.com/TheDave94/pollenwatch/issues) if anything
   looks off.
+- **15 of 24 species are graded against related-family thresholds**, not
+  exact-species cutoffs (no published EAACI/CAMS thresholds exist for them —
+  the only honest options were to ship them ungraded or to grade against a
+  near relative; the latter was chosen and is documented per-species in
+  [ANALYTICS.md](ANALYTICS.md)). The `low`/`high` categories still mean
+  "in season" / "at or above peak," but the evidence is one tier softer than
+  for alder/birch/grass/hazel/mugwort/ragweed/olive/rye/cypress, which do have
+  exact-species thresholds.
+- **alternaria is a fungal spore, not pollen** — kept opt-in (never preselected),
+  graded against a related-family threshold. Useful for people who track it
+  alongside pollen; safe to ignore otherwise.
+- **Per-region default selection is a starting recommendation, not a
+  prescription.** The country-default table is maintained by the project, not
+  a clinical authority; it's a defensible v1 of "what most people in this
+  country are likely to want." Adjust freely in Options at any time.
 
 ## Brand & design
 

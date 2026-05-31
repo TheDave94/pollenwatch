@@ -18,13 +18,41 @@ from dataclasses import dataclass
 # (onset, peak) grains/m³ per species — EAACI (Pfaar 2017/2020), as used by
 # Copernicus CAMS / Climate-ADAPT. See ANALYTICS.md for citations. alder and
 # mugwort are grouped by analogy (birch/olive), NOT independently sourced.
+# v2.0+ additions for the expanded 24-species set: species without exact-
+# species EAACI cutoffs borrow from the family analogue (tree group → birch
+# bracket; herb/grass group → Poaceae bracket). These are flagged as
+# `ThresholdStatus.PARTIAL` in `species_registry`; promoting them to exact
+# cutoffs is tracked in REVIEW_QUEUE.md.
 _THRESHOLDS: dict[str, tuple[float, float]] = {
+    # v1.x exact EAACI cutoffs
     "alder": (10, 100),
     "birch": (10, 100),
     "olive": (10, 100),
     "mugwort": (10, 100),
     "grass": (3, 50),
     "ragweed": (3, 50),
+    # v2.0 trees — birch/olive bracket
+    "hazel": (10, 100),
+    "ash": (10, 100),
+    "oak": (10, 100),
+    "holm_oak": (10, 100),
+    "beech": (10, 100),
+    "elm": (10, 100),
+    "carpinus": (10, 100),
+    "plane_tree": (10, 100),
+    "cypress_family": (10, 100),
+    "juglans": (10, 100),
+    # v2.0 grasses + herbs — Poaceae/Ambrosia bracket
+    "rye": (3, 50),
+    "plantago": (3, 50),
+    "urtica": (3, 50),
+    "nettle_family": (3, 50),
+    "chenopodium": (3, 50),
+    "rumex": (3, 50),
+    "asteraceae": (3, 50),
+    # Note: alternaria (spore) is reported by PI as a 0-4 index — collapse_index
+    # path, never grains/m³ — so it never reaches bucket_level. No threshold
+    # entry needed; intentionally omitted.
 }
 
 # polleninformation 0–4 index -> 3-level scale (operational alignment).
@@ -37,13 +65,18 @@ PERCENTILE_WINDOW_DAYS = 92
 MIN_PERCENTILE_DAYS = 14
 
 
-def bucket_level(species: str, grains: float) -> int:
+def bucket_level(species: str, grains: float) -> int | None:
     """Bucket a grains/m³ concentration down to the 0/1/2 level.
 
     Boundary convention: a value equal to a threshold belongs to the higher
-    level (``>=``).
+    level (``>=``). Returns ``None`` for species without published thresholds
+    (the source contributes a raw value but no level → not in consensus
+    aggregation). Defensive even though v2.0+ covers all 24 species.
     """
-    onset, peak = _THRESHOLDS[species]
+    bounds = _THRESHOLDS.get(species)
+    if bounds is None:
+        return None
+    onset, peak = bounds
     if grains >= peak:
         return 2
     if grains >= onset:
@@ -198,32 +231,63 @@ _LEVEL_TO_CONSENSUS = {0: CONSENSUS_NONE, 1: CONSENSUS_LOW, 2: CONSENSUS_HIGH}
 class ConsensusResult:
     """Cross-source consensus for one species.
 
-    ``state`` is None when fewer than two sources cover the species (consensus
-    needs ≥2 — the metric never reports one source talking to itself).
+    v2.0+: single-source species are also represented (state = that source's
+    own level mapped to none/low/high; `diverged` always False; the n/m badge
+    on the sensor tells the user it's single-source). `source_count` is how
+    many sources actually contributed; `max_possible` is the global ceiling
+    from the species registry (used by the card for the badge denominator).
     """
 
-    state: str | None  # one of CONSENSUS_OPTIONS, or None if < 2 sources
-    level: int | None  # 0/1/2 when agreed; None for mixed or < 2 sources
-    diverged: bool  # True only in the "mixed" case (levels differ by > 1)
+    state: str | None        # one of CONSENSUS_OPTIONS, or None if 0 sources
+    level: int | None        # 0/1/2 when single or agreed; None for mixed/0
+    diverged: bool           # True only in the "mixed" case (levels differ by >1)
     source_levels: dict[str, int]  # contributing per-source levels
+    source_count: int        # len(source_levels) — how many contributed now
+    max_possible: int        # global ceiling from species_registry
 
 
-def consensus(levels: dict[str, int]) -> ConsensusResult:
+def consensus(levels: dict[str, int], max_possible: int = 0) -> ConsensusResult:
     """Combine per-source levels (0/1/2) into a consensus.
 
     Equal weighting (v1.0). Tiebreak (deliberate, health-conservative — see
     ANALYTICS.md): equal → that level; adjacent (differ by 1) → the **higher**
-    level; differ by >1 → "mixed". Fewer than two sources → state None
-    (omitted), so a single source never masquerades as consensus.
+    level; differ by >1 → "mixed".
+
+    Source-count semantics:
+    - 0 sources: state=None, level=None, source_count=0 (sensor unavailable).
+    - 1 source: pass-through — state = that source's level mapped to
+      none/low/high; never "mixed" (nothing to disagree with); never diverged.
+      The n/m badge on the sensor tells the user this is single-source.
+    - >=2 sources: existing v1 logic.
+
+    ``max_possible`` is the registry ceiling (how many sources GLOBALLY cover
+    this species); defaults to ``source_count`` if not provided (safe but
+    less informative for the badge).
     """
     source_levels = dict(levels)
-    if len(source_levels) < 2:
-        return ConsensusResult(None, None, False, source_levels)
+    source_count = len(source_levels)
+    if max_possible == 0:
+        max_possible = source_count or 1
+    if source_count == 0:
+        return ConsensusResult(None, None, False, source_levels, 0, max_possible)
+    if source_count == 1:
+        # Single-source pass-through. The lone source IS the consensus.
+        level = next(iter(source_levels.values()))
+        return ConsensusResult(
+            _LEVEL_TO_CONSENSUS[level], level, False, source_levels,
+            1, max_possible,
+        )
     values = list(source_levels.values())
     if max(values) - min(values) > 1:
-        return ConsensusResult(CONSENSUS_MIXED, None, True, source_levels)
+        return ConsensusResult(
+            CONSENSUS_MIXED, None, True, source_levels,
+            source_count, max_possible,
+        )
     level = max(values)  # take-the-higher on equal/adjacent
-    return ConsensusResult(_LEVEL_TO_CONSENSUS[level], level, False, source_levels)
+    return ConsensusResult(
+        _LEVEL_TO_CONSENSUS[level], level, False, source_levels,
+        source_count, max_possible,
+    )
 
 
 def recent_percentile_from_series(

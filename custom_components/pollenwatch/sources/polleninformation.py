@@ -48,16 +48,26 @@ SUPPORTED_COUNTRIES: tuple[str, ...] = (
     "AT", "CH", "DE", "ES", "FR", "GB", "IT", "LV", "LT", "PL", "SE", "TR", "UA",
 )
 
-#: polleninformation poll_id -> PollenWatch canonical allergen key. Only the
-#: species PollenWatch tracks are mapped; the API returns many more, which we
-#: ignore. Mapping is by stable numeric id (language-independent).
+#: polleninformation poll_id -> PollenWatch canonical allergen key. Mapping is
+#: by stable numeric id (language-independent). All 12 species PI's
+#: /api/forecast/public exposes are mapped; the plant-compass page lists more
+#: but those are educational content, not forecast variables. IDs confirmed
+#: from the krissen/polleninformation HACS integration's language_map.json.
+#: alternaria (poll_id 23) is a fungal spore, not pollen — labelled "(spore)"
+#: in the UI; opt-in only (never default-selected) per the locked recommendation.
 POLL_ID_TO_ALLERGEN: dict[int, str] = {
-    1: "alder",
-    2: "birch",
-    5: "grass",
-    6: "ragweed",
-    7: "mugwort",
-    18: "olive",
+    1: "alder",            # Alnus
+    2: "birch",            # Betula
+    3: "hazel",            # Corylus
+    5: "grass",            # Poaceae
+    6: "ragweed",          # Ambrosia
+    7: "mugwort",          # Artemisia
+    15: "nettle_family",   # Urticaceae (incl. Parietaria pellitory)
+    16: "plane_tree",      # Platanus
+    17: "cypress_family",  # Cupressaceae
+    18: "olive",           # Olea
+    23: "alternaria",      # Alternaria (fungal spore)
+    291: "rye",            # Secale
 }
 
 #: Number of daily forecast values (contamination_1..4).

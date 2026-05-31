@@ -188,6 +188,12 @@ Icon at 24px + label (Hanken 500, ~14.5px). Active state: subtle light overlay +
 3px inset `--pw-gold` left accent bar. Works on HA's dark sidebar; the icon's
 bright dial/pollen carry it.
 
+### 6. Per-species plant-signifier icons — SEE `Species icons` below
+The multi-species card replaces the single-species flower icon with one
+plant-signifier per species (catkin, nut, seed-head, leaf — `assets/species/`).
+Color-neutral (CSS vars) so each row/tile inherits theme + severity tint. See
+the **Species icons** section below for the full 24-species key list.
+
 ---
 
 ## Interactions & Behavior
@@ -210,7 +216,85 @@ Minimum state for a PollenWatch surface:
   reuse the same ramp + pill per allergen.
 - `loading` / `error` states for the fetch.
 
+## Species icons — 24 plant signifiers
+
+The multi-species card shows up to 24 allergenic species, one row/tile each. Each
+species is identified by its **recognizable plant feature** — fruit, nut,
+catkin, seed-head, leaf, or flower — not its pollen grain. (An earlier
+pollen-micrograph approach was retired pre-v2.0: pollen grains aren't
+distinguishable enough across 24 species at icon size; tricolporate tree pollen
+in particular is near-identical for oak/beech/ash/hornbeam/elm.)
+**Distinguishability in a row is the #1 requirement**; the set is tuned to hold
+at 32px and 16px.
+
+Same hand as the rest of the brand: outline `2.2`, detail `~1.6`, flat/2-tone,
+viewBox `0 0 64 64`, ~8px padding, **color-neutral** via `--pw-grain-stroke` /
+`--pw-grain-fill` (inline them so the card can tint per severity state). Files
+in `assets/species/` (+ `_contact_sheet.png`).
+
+### Color model — neutral by default
+Each SVG references two CSS custom properties (with safe fallbacks so the file
+still renders when opened standalone):
+```
+--pw-grain-stroke   outline + surface detail   (fallback #2A3540)
+--pw-grain-fill     body fill                  (fallback #E8EBEE)
+```
+No hardcoded brand/severity colors live in the artwork. **Inline the SVG**
+(not `<img>`) so the parent's CSS vars cascade in. The card sets vars per
+context:
+```css
+/* light */ .grain { --pw-grain-stroke:#2A3540; --pw-grain-fill:#E8EBEE; }
+/* dark  */ .theme-dark .grain { --pw-grain-stroke:#E7ECF1; --pw-grain-fill:#3C4A59; }
+/* inherit the row's severity state (higher = worse) */
+.row.high .grain { --pw-grain-stroke:var(--pw-very-high); --pw-grain-fill:#F6D9CC; }
+```
+
+### Files — `assets/species/` (filenames match `species_registry.CANONICAL_SPECIES` keys)
+| key | signifier used |
+|---|---|
+| `birch` | drooping catkin + pointed ovate leaf |
+| `alder` | two woody cones (strobiles) on a twig |
+| `hazel` | round nut in a frilled husk |
+| `oak` | acorn + rounded-lobe (deciduous) leaf |
+| `holm_oak` | acorn + spiny **evergreen** (holly-like) leaf — the deciduous-vs-evergreen tell vs `oak` |
+| `beech` | triangular beechnut in a spiky cupule (burr) |
+| `ash` | bunch of single-wing "keys" (samaras) |
+| `carpinus` | three-lobed papery seed bract (dominant central lobe) + nutlet — hornbeam |
+| `elm` | round flat samara, central seed + top notch |
+| `plane_tree` | spiky round seed-ball on a hanging stalk |
+| `olive` | single olive fruit hanging from a leafy sprig |
+| `juglans` | round nut with central seam + wrinkles — walnut |
+| `cypress_family` | scale-foliage sprig + small round cones |
+| `grass` | loose airy seed-head (drooping spikelets) |
+| `rye` | dense cereal ear with long awns |
+| `mugwort` | feathery branched flower plume |
+| `ragweed` | deeply dissected lacy leaf + flower raceme |
+| `plantago` | bottlebrush flower spike on a bare stalk — plantain |
+| `urtica` | serrated heart-shaped leaf + dangling flower strings — common nettle |
+| `nettle_family` | calm paired-leaf sprig (pellitory) — Urticaceae |
+| `chenopodium` | hastate goosefoot-shaped leaf |
+| `rumex` | tall beaded seed spike (dock) |
+| `asteraceae` | generic composite daisy (catch-all daisy family) |
+| `alternaria` | club-shaped **muriform fungal spore** + beak — deliberately **not a plant** (the honest odd-one-out: a mould spore, a different visual family). **Revision pending** — current shape reads plant-ish; awaiting a more obviously-fungal version. |
+
+Hardest cases were tuned deliberately: the tree-nuts
+(`oak`/`holm_oak`/`beech`/`hazel`/`juglans`) are separated by husk/shape/leaf,
+not the nut alone; `oak` vs `holm_oak` by leaf character (rounded lobes vs
+evergreen spines); and the spike-likes (`grass` airy head / `rye` awned ear /
+`plantago` bottlebrush / `mugwort` feathery plume / `rumex` beaded spike) by
+overall gesture.
+
+> **Known confusability at 16px**: `ash`/`carpinus` and `rumex`/`plantago` are
+> the closest pairs at thumbnail size (distinct at 32px+). The multi-species
+> card should keep icon size ≥ 28px in the list/strip layouts, or tweak those
+> two pairs for sub-32px display.
+
+Don't tint inside the SVGs, add a 25th species, or rename a key. (Filenames are
+the canonical species key from `species_registry.py` — the registry is the
+source of truth.)
+
 ## Files in this bundle
+- `assets/species/*.svg` — 24 per-species plant-signifier icons + `_contact_sheet.png`
 - `GAUGE_SPEC.md` — **authoritative** categorical gauge spec (states, geometry, behavior)
 - `gauge/gauge-gen.js` — reference SVG generator (`PWGauge.pwGauge(state)`)
 - `gauge/states/*.svg` — the six gauge states as standalone SVGs
@@ -226,7 +310,7 @@ Minimum state for a PollenWatch surface:
 ## How to drive an implementation with Claude Code / browser Claude
 1. Put this whole folder in (or alongside) your repo and open it with Claude Code.
 2. Prompt, e.g.:
-   > "Read `design_handoff_pollenwatch_brand/README.md` and the brand guide.
+   > "Read `brand/README.md`, `brand/GAUGE_SPEC.md`, and the brand guide.
    > Implement a PollenWatch severity card + gauge as a `<Lit/React/…>` component
    > in this codebase, using our existing component and theming patterns. Wire the
    > tokens into our theme. Start with the gauge, then the card, then the sidebar

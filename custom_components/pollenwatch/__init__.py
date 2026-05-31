@@ -48,17 +48,67 @@ async def async_migrate_entry(
     v1 → v2 (multi-source): additively add the per-source enablement config to
     options. Purely additive — no existing key is moved or dropped — so the live
     single-source (Open-Meteo) setup is preserved. Idempotent.
-    """
-    from .const import CONF_SOURCES, new_sources_config
 
-    if entry.version > 2:
+    v2 → v3 (species selection): rename the storage key for the user's
+    selected species from CONF_ALLERGENS ("allergens") to
+    CONF_SELECTED_SPECIES ("selected_species"). Lossless: the list contents
+    are preserved exactly; entity unique_ids are keyed on species canonical
+    keys so no entity_id churn occurs. The v1.x → v3 path runs both legs
+    sequentially.
+    """
+    from .const import (
+        CONF_SELECTED_SPECIES,
+        CONF_SOURCES,
+        DEFAULT_SELECTED_SPECIES,
+        new_sources_config,
+    )
+
+    # Literal pre-v3 key. Once CONF_ALLERGENS is dropped (release after next)
+    # this can move into a private helper; for now it lives here as the only
+    # call site that needs the legacy string.
+    legacy_allergens_key = "allergens"
+
+    if entry.version > 3:
         # Downgrade (e.g. user rolled back) — refuse rather than corrupt.
         return False
 
     if entry.version == 1:
         options = {**entry.options}
         options.setdefault(CONF_SOURCES, new_sources_config())
-        hass.config_entries.async_update_entry(entry, options=options, version=2)
+        hass.config_entries.async_update_entry(
+            entry, options=options, version=2
+        )
+
+    if entry.version == 2:
+        data = {**entry.data}
+        options = {**entry.options}
+        # Recover the species list from either the legacy key or the new
+        # key (the new key may already be present if the entry was created
+        # by a v3 config flow but not yet bumped — defensive).
+        species_list = (
+            options.get(CONF_SELECTED_SPECIES)
+            or data.get(CONF_SELECTED_SPECIES)
+            or options.pop(legacy_allergens_key, None)
+            or data.pop(legacy_allergens_key, None)
+        )
+        if not species_list:
+            # Defensive: a v2 entry should always have the key somewhere.
+            # Fall back to the canonical 6 so the install doesn't lose
+            # entities silently.
+            species_list = list(DEFAULT_SELECTED_SPECIES)
+            _LOGGER.warning(
+                "PollenWatch entry %s migrating to v3 with no recoverable "
+                "species list; falling back to canonical v1 set",
+                entry.entry_id,
+            )
+        # Always write the new key; clean up any stale legacy key in
+        # both data and options (idempotency).
+        options[CONF_SELECTED_SPECIES] = species_list
+        options.pop(legacy_allergens_key, None)
+        data.pop(legacy_allergens_key, None)
+        hass.config_entries.async_update_entry(
+            entry, data=data, options=options, version=3
+        )
 
     return True
 

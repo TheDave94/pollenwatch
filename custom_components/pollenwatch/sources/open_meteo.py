@@ -145,18 +145,14 @@ class OpenMeteoSource:
 
     @staticmethod
     def _validate_allergens(allergens: Iterable[str] | None) -> list[str]:
+        # Silent-drop pattern matching every other source: the orchestrator
+        # passes the user's GLOBAL selection (24 species in v2+) and each
+        # source takes only what it covers. v1.x raised on unknowns because
+        # the global selection == OM's set; v2+ has a bigger global set, so a
+        # raise here would block every install selecting e.g. hazel.
         if allergens is None:
             return list(SUPPORTED_ALLERGENS)
-        chosen = [a for a in allergens if a in _API_VAR]
-        unknown = [a for a in allergens if a not in _API_VAR]
-        if unknown:
-            raise ValueError(
-                f"Unsupported allergen(s) for Open-Meteo: {', '.join(unknown)}. "
-                f"Supported: {', '.join(SUPPORTED_ALLERGENS)}"
-            )
-        if not chosen:
-            raise ValueError("At least one allergen must be requested.")
-        return chosen
+        return [a for a in allergens if a in _API_VAR]
 
     # -- request building ----------------------------------------------------
 

@@ -24,13 +24,13 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
-    ALLERGEN_NAMES,
     ALLERGENS,
     CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
     CONF_REGION,
+    CONF_SELECTED_SPECIES,
     CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_STATION,
@@ -53,6 +53,12 @@ from .const import (
     new_sources_config,
 )
 from .coordinator import PollenWatchConfigEntry, _entry_option
+from .region_defaults import (
+    HIGH_POTENCY_CORE,
+    get_locally_available_species,
+    get_region_defaults,
+    species_class_label,
+)
 from .sources import epin as epin_source
 from .sources import meteoswiss as ms_source
 from .sources.base import SourceAuthError, SourceError, SourceStatus
@@ -60,6 +66,7 @@ from .sources.dwd import DwdSource
 from .sources.google import GoogleSource
 from .sources.open_meteo import OpenMeteoSource
 from .sources.polleninformation import SUPPORTED_COUNTRIES, PolleninformationSource
+from .sources.species_registry import CANONICAL_SPECIES
 
 CONF_LOCATION = "location"
 CONF_ENABLE_PI = "enable_polleninformation"
@@ -69,6 +76,10 @@ CONF_ENABLE_EPIN = "enable_epin"
 CONF_ENABLE_GOOGLE = "enable_google"
 # Distinct form field so it doesn't collide with polleninformation's api_key.
 CONF_GOOGLE_API_KEY = "google_api_key"
+# Species-selection step (v3) — quick-pick toggle that replaces the
+# user's selection with the cross-validated core (8 species). One flat
+# form per Q2 decision (no Min-HA bump for grouped SelectSelector).
+CONF_QUICK_PICK_CORE = "use_cross_validated_core"
 
 
 def _station_label(stations: dict[str, tuple[str, float, float]], code: str) -> str:
@@ -77,17 +88,40 @@ def _station_label(stations: dict[str, tuple[str, float, float]], code: str) -> 
         return f"{stations[code][0]} ({code})"
     return "auto-detected when enabled"
 
-_ALLERGEN_SELECTOR = selector.SelectSelector(
-    selector.SelectSelectorConfig(
-        options=[
-            selector.SelectOptionDict(value=key, label=name)
-            for key, name in ALLERGEN_NAMES.items()
-        ],
-        multiple=True,
-        mode=selector.SelectSelectorMode.LIST,
-        translation_key="allergen",
+def _species_selector(country: str | None) -> selector.SelectSelector:
+    """Build a species multi-select for this country.
+
+    Locally-available filter: only species whose source set includes at
+    least one source CAPABLE of being enabled here (OM + Google always;
+    PI/DWD/MS/ePIN per country). Label is class-prefixed + source-count
+    annotated, e.g. ``[Tree] Hazel (5/6 sources)``, sorted by class then
+    canonical key so the dropdown reads as grouped (no Min-HA bump
+    needed for true UI grouping).
+    """
+    keys = get_locally_available_species(country)
+    # Sort by (class, key) so the flat list visually clusters per class.
+    keys = sorted(keys, key=lambda k: (
+        ("tree", "grass", "herb", "spore").index(
+            str(CANONICAL_SPECIES[k].class_)
+        ),
+        k,
+    ))
+    options = []
+    for key in keys:
+        info = CANONICAL_SPECIES[key]
+        max_n = len(info.sources)
+        label = (
+            f"[{species_class_label(key)}] "
+            f"{info.common} ({max_n}/6 sources)"
+        )
+        options.append(selector.SelectOptionDict(value=key, label=label))
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=options,
+            multiple=True,
+            mode=selector.SelectSelectorMode.LIST,
+        )
     )
-)
 
 _INTERVAL_SELECTOR = selector.NumberSelector(
     selector.NumberSelectorConfig(
@@ -232,39 +266,43 @@ async def _async_probe_coverage(
 class PollenWatchConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the initial setup of a PollenWatch config entry."""
 
-    VERSION = 2
+    # v3 (v2.0 release): storage key for species selection is now
+    # CONF_SELECTED_SPECIES, not CONF_ALLERGENS. Old entries migrate
+    # losslessly via async_migrate_entry. Onboarding is now two-step:
+    # location (this step) → species (region-aware multi-select +
+    # cross-validated quick-pick toggle).
+    VERSION = 3
+
+    def __init__(self) -> None:
+        # Carried between steps. Set in async_step_user; consumed in
+        # async_step_species when creating the entry.
+        self._latitude: float | None = None
+        self._longitude: float | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Step 1: location only. Probes Open-Meteo coverage, then routes
+        to the species step. Allergen selection no longer lives here."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             location = user_input[CONF_LOCATION]
             latitude = location[CONF_LATITUDE]
             longitude = location[CONF_LONGITUDE]
-            allergens = user_input[CONF_ALLERGENS]
-
-            if not allergens:
-                errors[CONF_ALLERGENS] = "no_allergens"
+            await self.async_set_unique_id(f"{latitude:.4f}_{longitude:.4f}")
+            self._abort_if_unique_id_configured()
+            # Probe with any OM-supported species — just a connectivity +
+            # coverage check (OM silent-drops unknown allergens in v2+).
+            error = await _async_probe_coverage(
+                self.hass, latitude, longitude, list(DEFAULT_ALLERGENS)
+            )
+            if error:
+                errors["base"] = error
             else:
-                await self.async_set_unique_id(f"{latitude:.4f}_{longitude:.4f}")
-                self._abort_if_unique_id_configured()
-                error = await _async_probe_coverage(
-                    self.hass, latitude, longitude, allergens
-                )
-                if error:
-                    errors["base"] = error
-                else:
-                    return self.async_create_entry(
-                        title=f"PollenWatch ({latitude:.3f}, {longitude:.3f})",
-                        data={
-                            CONF_LATITUDE: latitude,
-                            CONF_LONGITUDE: longitude,
-                            CONF_ALLERGENS: allergens,
-                        },
-                        options={CONF_SOURCES: new_sources_config()},
-                    )
+                self._latitude = latitude
+                self._longitude = longitude
+                return await self.async_step_species()
 
         suggested_location = {
             CONF_LATITUDE: self.hass.config.latitude,
@@ -277,13 +315,73 @@ class PollenWatchConfigFlow(ConfigFlow, domain=DOMAIN):
                 ): selector.LocationSelector(
                     selector.LocationSelectorConfig(radius=False)
                 ),
-                vol.Required(
-                    CONF_ALLERGENS, default=DEFAULT_ALLERGENS
-                ): _ALLERGEN_SELECTOR,
             }
         )
         return self.async_show_form(
             step_id="user", data_schema=schema, errors=errors
+        )
+
+    async def async_step_species(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2: region-aware species multi-select + cross-validated
+        quick-pick toggle. The toggle, when set, OVERRIDES the multi-
+        select and writes the 8 cross-validated species (alder, birch,
+        grass, hazel, mugwort, ragweed, olive, ash) — the one-click sane
+        default for users who don't want to think about it.
+
+        Only locally-available species appear (those with at least one
+        source capable of being enabled at this country). alternaria
+        deliberately never pre-selected (opt-in-only spore decision).
+        """
+        errors: dict[str, str] = {}
+        country = self.hass.config.country
+        available = set(get_locally_available_species(country))
+        defaults = get_region_defaults(country)  # already filtered
+
+        if user_input is not None:
+            if user_input.get(CONF_QUICK_PICK_CORE, False):
+                # Quick-pick wins. Take the 8 core species intersected
+                # with what's available at this location.
+                species = [s for s in HIGH_POTENCY_CORE if s in available]
+            else:
+                species = list(user_input.get(CONF_SELECTED_SPECIES, []))
+            if not species:
+                errors[CONF_SELECTED_SPECIES] = "no_species"
+            else:
+                return self.async_create_entry(
+                    title=(
+                        f"PollenWatch ({self._latitude:.3f}, "
+                        f"{self._longitude:.3f})"
+                    ),
+                    data={
+                        CONF_LATITUDE: self._latitude,
+                        CONF_LONGITUDE: self._longitude,
+                        CONF_SELECTED_SPECIES: species,
+                    },
+                    options={CONF_SOURCES: new_sources_config()},
+                )
+
+        schema = vol.Schema({
+            vol.Required(
+                CONF_SELECTED_SPECIES, default=defaults,
+            ): _species_selector(country),
+            vol.Optional(
+                CONF_QUICK_PICK_CORE, default=False,
+            ): selector.BooleanSelector(),
+        })
+        return self.async_show_form(
+            step_id="species",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={
+                "country": country or "(unset)",
+                "default_count": str(len(defaults)),
+                "available_count": str(len(available)),
+                "core_count": str(len([
+                    s for s in HIGH_POTENCY_CORE if s in available
+                ])),
+            },
         )
 
     @staticmethod
@@ -317,7 +415,7 @@ class PollenWatchOptionsFlow(OptionsFlow):
         google_cfg = sources.get(SOURCE_GOOGLE, {})
 
         if user_input is not None:
-            allergens = user_input[CONF_ALLERGENS]
+            allergens = user_input[CONF_SELECTED_SPECIES]
             enable_pi = user_input.get(CONF_ENABLE_PI, False)
             country = user_input.get(CONF_COUNTRY)
             api_key = user_input.get(CONF_API_KEY, "")
@@ -334,7 +432,7 @@ class PollenWatchOptionsFlow(OptionsFlow):
             longitude = entry.data[CONF_LONGITUDE]
 
             if not allergens:
-                errors[CONF_ALLERGENS] = "no_allergens"
+                errors[CONF_SELECTED_SPECIES] = "no_species"
             if enable_pi:
                 if not country:
                     errors[CONF_COUNTRY] = "country_required"
@@ -385,7 +483,9 @@ class PollenWatchOptionsFlow(OptionsFlow):
                 }
                 return self.async_create_entry(
                     data={
-                        CONF_ALLERGENS: allergens,
+                        # v3 storage key. Form-field upstream keeps using
+                        # CONF_ALLERGENS so strings.json translations resolve.
+                        CONF_SELECTED_SPECIES: allergens,
                         CONF_UPDATE_INTERVAL: user_input[CONF_UPDATE_INTERVAL],
                         CONF_SENSITIVITY: sensitivity,
                         CONF_SOURCES: {
@@ -417,7 +517,14 @@ class PollenWatchOptionsFlow(OptionsFlow):
                     }
                 )
 
-        current_allergens = _entry_option(entry, CONF_ALLERGENS, DEFAULT_ALLERGENS)
+        # v3 storage key. Falls back to legacy CONF_ALLERGENS only if the
+        # v3 key is entirely absent — explicit empty stays empty (matches
+        # the coordinator's reader; see build_coordinators for rationale).
+        current_allergens = _entry_option(entry, CONF_SELECTED_SPECIES, None)
+        if current_allergens is None:
+            current_allergens = _entry_option(
+                entry, CONF_ALLERGENS, DEFAULT_ALLERGENS
+            )
         current_interval = _entry_option(
             entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_MIN
         )
@@ -425,8 +532,8 @@ class PollenWatchOptionsFlow(OptionsFlow):
         current_sensitivity = _entry_option(entry, CONF_SENSITIVITY, {})
         schema_dict = {
             vol.Required(
-                CONF_ALLERGENS, default=current_allergens
-            ): _ALLERGEN_SELECTOR,
+                CONF_SELECTED_SPECIES, default=current_allergens
+            ): _species_selector(self.hass.config.country),
             vol.Required(
                 CONF_UPDATE_INTERVAL, default=current_interval
             ): _INTERVAL_SELECTOR,

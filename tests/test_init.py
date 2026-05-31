@@ -27,6 +27,7 @@ from custom_components.pollenwatch.const import (
     CONF_COUNTRY,
     CONF_ENABLED,
     CONF_REGION,
+    CONF_SELECTED_SPECIES,
     CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_STATION,
@@ -193,26 +194,112 @@ async def test_migrate_v1_entry_to_v2(hass: HomeAssistant) -> None:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    # Migrated to v2 with the additive sources config.
-    assert entry.version == 2
+    # Migrated through v1 → v2 → v3 (full chain on a setup-driven load).
+    assert entry.version == 3
     sources = entry.options[CONF_SOURCES]
     assert sources[SOURCE_OPEN_METEO][CONF_ENABLED] is True
     assert sources[SOURCE_POLLENINFORMATION][CONF_ENABLED] is False
-    # Existing keys preserved (purely additive migration).
-    assert entry.data[CONF_ALLERGENS] == ["grass", "birch"]
+    # v2→v3 step renamed the storage key into options (where the user's
+    # editable selection lives); legacy key removed from both data and
+    # options so there's no stale dual-key state.
+    assert entry.options[CONF_SELECTED_SPECIES] == ["grass", "birch"]
+    assert "allergens" not in entry.data
+    assert "allergens" not in entry.options
     assert entry.options[CONF_UPDATE_INTERVAL] == 60
     # Open-Meteo keeps working through the migration.
     assert entry.state is ConfigEntryState.LOADED
     assert hass.states.get("sensor.pollenwatch_open_meteo_grass") is not None
 
 
-async def test_migrate_is_idempotent_on_v2(hass: HomeAssistant) -> None:
-    entry = _entry()  # already v2 (default MockConfigEntry version)
+async def test_migrate_v2_entry_renames_allergens_to_selected_species(
+    hass: HomeAssistant,
+) -> None:
+    """v2→v3 migrates the storage key losslessly, removing the legacy key."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="47.0700_15.4400",
+        title="PollenWatch (47.070, 15.440)",
+        # Literal "allergens" keys — what a real v2 entry actually has.
+        data={
+            CONF_LATITUDE: 47.07,
+            CONF_LONGITUDE: 15.44,
+            "allergens": ["grass", "birch", "alder"],
+        },
+        options={
+            "allergens": ["grass", "birch", "alder"],
+            CONF_SOURCES: new_sources_config(),
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is True
+    assert entry.version == 3
+    # Legacy literal key removed from both locations.
+    assert "allergens" not in entry.options
+    assert "allergens" not in entry.data
+    # New key present with original contents preserved exactly.
+    assert entry.options[CONF_SELECTED_SPECIES] == ["grass", "birch", "alder"]
+
+
+async def test_migrate_v2_entry_missing_allergens_uses_v1_fallback(
+    hass: HomeAssistant,
+) -> None:
+    """Defensive: v2 entry with no recoverable species list falls back to the
+    canonical 6 so existing entities aren't silently orphaned."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="47.0700_15.4400",
+        title="PollenWatch (47.070, 15.440)",
+        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44},
+        options={CONF_SOURCES: new_sources_config()},
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is True
+    assert entry.version == 3
+    assert entry.options[CONF_SELECTED_SPECIES] == [
+        "alder", "birch", "grass", "mugwort", "olive", "ragweed",
+    ]
+
+
+async def test_migrate_is_idempotent_on_v3(hass: HomeAssistant) -> None:
+    """A v3 entry passed back through migration must not change."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="47.0700_15.4400",
+        title="PollenWatch (47.070, 15.440)",
+        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44},
+        options={
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
+            CONF_SOURCES: new_sources_config(),
+        },
+    )
     entry.add_to_hass(hass)
     before = dict(entry.options)
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 2
+    assert entry.version == 3
     assert dict(entry.options) == before
+
+
+async def test_migrate_v4_entry_is_refused(hass: HomeAssistant) -> None:
+    """A future-version entry (e.g. user rolled back) is refused, not corrupted."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=4,
+        unique_id="47.0700_15.4400",
+        title="PollenWatch (47.070, 15.440)",
+        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44},
+        options={
+            CONF_SELECTED_SPECIES: ["grass"],
+            CONF_SOURCES: new_sources_config(),
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await async_migrate_entry(hass, entry) is False
+    assert entry.version == 4  # untouched
 
 
 def _pi_result():
@@ -637,7 +724,12 @@ async def test_google_is_consensus_only_no_recent_percentile(
     assert grass.state == "high"
 
 
-async def test_no_consensus_with_single_source(hass: HomeAssistant) -> None:
+async def test_single_source_emits_consensus_but_not_divergence(
+    hass: HomeAssistant,
+) -> None:
+    """v2.0+: single-source species DO get a consensus sensor (pass-through
+    level + source_count=1 badge — the honesty mechanism). Divergence stays
+    multi-source-only — nothing to disagree with when there's one source."""
     entry = _entry()  # polleninformation disabled -> only Open-Meteo
     entry.add_to_hass(hass)
     with (
@@ -647,9 +739,20 @@ async def test_no_consensus_with_single_source(hass: HomeAssistant) -> None:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    # Consensus needs >= 2 sources: no consensus/divergence entities at all.
-    assert hass.states.get("sensor.pollenwatch_analytics_grass_consensus") is None
-    assert hass.states.get("binary_sensor.pollenwatch_analytics_grass_divergence") is None
+    # Consensus sensor exists, pass-through Open-Meteo's level for grass.
+    consensus_state = hass.states.get(
+        "sensor.pollenwatch_analytics_grass_consensus"
+    )
+    assert consensus_state is not None
+    assert consensus_state.state == "low"  # pass-through of OM's level 1
+    assert consensus_state.attributes["source_count"] == 1
+    assert consensus_state.attributes["max_possible_sources"] == 6
+    assert consensus_state.attributes["source_levels"] == {"open_meteo": 1}
+    # Divergence binary stays gated on >=2 sources — never created here.
+    assert (
+        hass.states.get("binary_sensor.pollenwatch_analytics_grass_divergence")
+        is None
+    )
 
 
 async def test_unload_entry(hass: HomeAssistant) -> None:

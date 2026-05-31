@@ -182,3 +182,33 @@ examples below (the rest are structurally identical).
   derive `level`, `grainCount`, `needleAngle`, and caption from the tables above.
 - The card chrome (icon + title + meta + caption) is in the brand guide's
   dashboard-card section; reuse it.
+
+---
+
+## Multi-species card — plant-signifier icons
+
+When the card breaks the combined reading into per-allergen rows (or a hero +
+strip / mini-gauge strip layout), **the single-species flower icon is replaced
+by a plant-signifier icon per species** (catkin, nut, seed-head, leaf, fruit —
+whatever distinguishes the plant). Files in `assets/species/` — one SVG per
+canonical species key; see the **Species icons** section of `README.md` for the
+full key→signifier list and morphology notes.
+
+- The icons are **color-neutral** (`--pw-grain-stroke` / `--pw-grain-fill`);
+  inline them so each row inherits the theme and its own severity tint. A row's
+  state still follows the same `none/low/high/mixed/unknown/nodata` model and the
+  same "higher = worse" ramp defined above — the icon identifies *which* species
+  the row is, while the row's gauge/pill carries the level.
+- A per-species row that is `mixed` / `unknown` / `nodata` uses the same
+  needle-less, gray treatments from this spec; the icon stays neutral and does
+  not imply a value.
+- `alternaria` is a fungal spore, not a plant, and is drawn as a deliberate
+  odd-one-out (muriform spore + beak) so the category honesty is visual, not
+  just label-only. It is opt-in (never default-checked) for that reason.
+
+> **Pollen-grain micrographs (deprecated).** Earlier iterations used
+> botanical pollen-grain micrographs (a 6-grain set). That approach was
+> retired before v2.0: pollen morphology is not distinguishable enough
+> across 24 species at icon size (oak/beech/ash/hornbeam/elm are all
+> near-identical tricolporate tree pollen). The repo ships only
+> `assets/species/`; there is no `assets/grains/`.

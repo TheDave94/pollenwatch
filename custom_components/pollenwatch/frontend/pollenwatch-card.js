@@ -13,7 +13,34 @@
  * show_mixed_span?: false, expanded_default?: false }.
  */
 (() => {
-  const CARD_VERSION = '0.1.0';
+  const CARD_VERSION = '0.2.0';  // v2.0 phase F — badge + species icon
+
+  // Icon URL pattern. Icons live in custom_components/pollenwatch/frontend/
+  // icons/{canonical_key}.svg and are served via the integration's static
+  // path registered in __init__.py. SVGs use --pw-grain-stroke /
+  // --pw-grain-fill CSS vars for per-state tinting.
+  const ICON_URL = (species) =>
+    `/pollenwatch_card_static/icons/${species}.svg`;
+
+  // Module-scoped cache so multiple card instances for the same species
+  // only fetch the SVG once.
+  const ICON_CACHE = new Map();
+  async function loadIcon(species) {
+    if (ICON_CACHE.has(species)) return ICON_CACHE.get(species);
+    try {
+      const r = await fetch(ICON_URL(species));
+      if (!r.ok) {
+        ICON_CACHE.set(species, null);
+        return null;
+      }
+      const svg = await r.text();
+      ICON_CACHE.set(species, svg);
+      return svg;
+    } catch (e) {
+      ICON_CACHE.set(species, null);
+      return null;
+    }
+  }
 
   // ── Geometry (matches brand/gauge/gauge-gen.js, viewBox 0 0 120 92) ──
   const CX = 60, CY = 60, R = 44, W = 11;
@@ -104,7 +131,11 @@
   const LEVEL_NAMES = ['none', 'low', 'high'];
   const LEVEL_COLORS = ['#3DAE5A', '#F2A516', '#E0492E'];
 
-  const SUPPORTED_SPECIES = ['alder', 'birch', 'grass', 'mugwort', 'olive', 'ragweed'];
+  // v2.0+: card accepts any species the integration knows about. The
+  // hard-coded gate that limited the card to the v1 6 is dropped — the
+  // canonical-species set is defined in species_registry.py (Python),
+  // not duplicated here. Typos surface as "nodata" (the consensus
+  // sensor entity_id doesn't resolve), which is the honest failure mode.
 
   const SOURCE_LABELS = {
     open_meteo: 'Open-Meteo',
@@ -119,15 +150,24 @@
   function resolveState(hass, species) {
     const eid = `sensor.pollenwatch_analytics_${species}_consensus`;
     const ent = hass?.states?.[eid];
-    if (!ent) return { state: 'nodata', source_levels: {} };
+    if (!ent) return {
+      state: 'nodata', source_levels: {},
+      source_count: 0, max_possible: 0,
+    };
     const src = ent.attributes?.source_levels || {};
+    // v2.0+ attributes — first-class data for the n/m badge.
+    const source_count = ent.attributes?.source_count ?? Object.keys(src).length;
+    const max_possible = ent.attributes?.max_possible_sources ?? source_count;
     if (ent.state === 'unavailable' || ent.state === 'unknown') {
-      return { state: 'unknown', source_levels: src };
+      return { state: 'unknown', source_levels: src, source_count, max_possible };
     }
     if (['none', 'low', 'high', 'mixed'].includes(ent.state)) {
-      return { state: ent.state, source_levels: src, last_changed: ent.last_changed };
+      return {
+        state: ent.state, source_levels: src, source_count, max_possible,
+        last_changed: ent.last_changed,
+      };
     }
-    return { state: 'unknown', source_levels: src };
+    return { state: 'unknown', source_levels: src, source_count, max_possible };
   }
 
   function perSourceRows(hass, species, source_levels) {
@@ -168,9 +208,21 @@
       color: var(--primary-text-color, #2A3540);
       box-shadow: var(--ha-card-box-shadow, none);
     }
-    .header { display: flex; align-items: baseline; gap: 12px; }
+    .header { display: flex; align-items: center; gap: 10px; }
+    .species-icon { width: 28px; height: 28px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .species-icon svg { width: 100%; height: 100%; }
     .title { font-weight: 600; font-size: 18px; letter-spacing: -0.015em; }
-    .meta { color: var(--secondary-text-color, #7C8794); font-size: 13px; margin-left: auto; }
+    .meta { display: flex; align-items: baseline; gap: 8px; margin-left: auto; }
+    /* n/m badge — Q5 decision: numeric only, no dots. Tabular-nums so n
+       and m line up across renders. */
+    .badge {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600; font-size: 13px;
+      color: var(--primary-text-color, #2A3540);
+      padding: 1px 6px; border-radius: 4px;
+      background: var(--divider-color, #ECE4D6);
+    }
+    .meta-time { color: var(--secondary-text-color, #7C8794); font-size: 12px; }
     .gauge-wrap { display: flex; justify-content: center; padding: 6px 0; }
     .pwgauge { width: 240px; max-width: 100%; height: auto; }
     .reading { text-align: center; padding: 0 0 6px; }
@@ -251,6 +303,48 @@
     .pwgauge .bloom { opacity: 0.6; }
     .pwgauge.state-unknown .bloom, .pwgauge.state-nodata .bloom { opacity: 0.3; }
 
+    /* === Species icon tinting per severity state ===
+       Icons declare var(--pw-grain-stroke,#2A3540) and
+       var(--pw-grain-fill,#E8EBEE); setting the vars on .species-icon
+       cascades into the inlined SVG. Duotone approach:
+         - stroke = always theme-text-color (reads against any bg)
+         - fill   = state-tinted (subtle severity signal)
+       Earlier amber-stroke-on-cream was hard to read at 28px. */
+    .species-icon {
+      --pw-grain-stroke: var(--primary-text-color, #2A3540);
+      --pw-grain-fill: var(--divider-color, #E8EBEE);
+    }
+    .card.state-none .species-icon { --pw-grain-fill: #C8E6CF; }
+    .card.state-low  .species-icon { --pw-grain-fill: #FCE5B8; }
+    .card.state-high .species-icon { --pw-grain-fill: #F4C6BA; }
+    .card.state-mixed .species-icon,
+    .card.state-unknown .species-icon,
+    .card.state-nodata .species-icon {
+      --pw-grain-fill: var(--divider-color, #ECE4D6);
+    }
+
+    /* === Single-source humbling — must be VISIBLE, not just polite ===
+       The badge number was carrying the whole single-source signal and a
+       number is easy to miss. Real treatment:
+         1. Desaturate the gauge (filter) — same severity colour, less
+            vivid. Eye reads "less certain" honestly.
+         2. Replace the n/m badge with explicit text "single source" so
+            the provenance caveat is a word, not a digit.
+         3. Genuinely thin needle (1.8px vs 3.6px), lower hub opacity.
+         4. Reading-label drops to 0.82 opacity. */
+    .single-source-label {
+      display: none;
+      font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--secondary-text-color, #7C8794);
+      font-style: italic;
+    }
+    .card.source-count-1 .badge { display: none; }
+    .card.source-count-1 .single-source-label { display: inline; }
+    .card.source-count-1 .pwgauge { filter: saturate(0.55); }
+    .card.source-count-1 .pwgauge .needle { stroke-width: 1.8; opacity: 0.7; }
+    .card.source-count-1 .pwgauge .hub { opacity: 0.7; }
+    .card.source-count-1 .reading-label { opacity: 0.82; }
+
     /* Reading label color per state — gray-never-green for empty */
     .reading.state-none .reading-label  { color: #3DAE5A; }
     .reading.state-low  .reading-label  { color: #F2A516; }
@@ -273,10 +367,10 @@
 
     setConfig(config) {
       if (!config?.species) {
-        throw new Error('pollenwatch-card: species is required (one of: ' + SUPPORTED_SPECIES.join(', ') + ')');
-      }
-      if (!SUPPORTED_SPECIES.includes(config.species)) {
-        throw new Error(`pollenwatch-card: unsupported species '${config.species}'`);
+        throw new Error(
+          'pollenwatch-card: species is required (any canonical species ' +
+          'from species_registry; e.g. grass, birch, hazel, plantago)'
+        );
       }
       this._config = {
         show_mixed_span: false,
@@ -302,10 +396,15 @@
       const species = this._config.species;
       this.shadowRoot.innerHTML = `
         <style>${CARD_CSS}</style>
-        <ha-card class="card">
+        <ha-card class="card" data-card>
           <div class="header">
+            <span class="species-icon" data-icon aria-hidden="true"></span>
             <div class="title">${cap(species)} pollen</div>
-            <div class="meta" data-meta></div>
+            <div class="meta">
+              <span class="badge" data-badge></span>
+              <span class="single-source-label">single source</span>
+              <span class="meta-time" data-time></span>
+            </div>
           </div>
           <div class="gauge-wrap">${gaugeSvg()}</div>
           <div class="reading" data-reading>
@@ -324,13 +423,29 @@
         btn.textContent = (this._expanded ? 'Hide' : 'Show') + ' sources';
         btn.setAttribute('aria-expanded', String(this._expanded));
       });
+      // Async-load species icon. Inlined so CSS vars cascade for tinting.
+      const iconHolder = this.shadowRoot.querySelector('[data-icon]');
+      loadIcon(species).then((svg) => {
+        if (svg && iconHolder) iconHolder.innerHTML = svg;
+      });
     }
 
     _render() {
       if (!this._hass || !this._config) return;
       const species = this._config.species;
-      const { state, source_levels = {}, last_changed } = resolveState(this._hass, species);
+      const {
+        state, source_levels = {}, source_count, max_possible, last_changed,
+      } = resolveState(this._hass, species);
       const recipe = STATE_RECIPE[state];
+
+      // Card-level state + source-count classes drive icon tint, single-
+      // source humbling, and badge styling. One class for state, one for
+      // source-count (1 vs >1 — only the 1-case gets explicit humbling
+      // per the locked principle "fewer sources = humbler treatment").
+      const card = this.shadowRoot.querySelector('[data-card]');
+      const sc = source_count ?? 0;
+      const scClass = sc === 1 ? 'source-count-1' : `source-count-multi`;
+      card.setAttribute('class', `card state-${state} ${scClass}`);
 
       // Gauge state
       const gauge = this.shadowRoot.querySelector('.pwgauge');
@@ -351,11 +466,16 @@
       }
       this.shadowRoot.querySelector('[data-sub]').textContent = sub;
 
-      // Meta (source count + relative time)
-      const n = Object.keys(source_levels).length;
-      const meta = this.shadowRoot.querySelector('[data-meta]');
+      // Badge: numeric n/m (Q5 decision — no dot row). Empty if there's
+      // no consensus sensor (state == nodata with no source_count).
+      const badgeEl = this.shadowRoot.querySelector('[data-badge]');
+      const mp = max_possible || sc;
+      badgeEl.textContent = (sc > 0 && mp > 0) ? `${sc}/${mp}` : '';
+
+      // Relative time stays as a separate meta element.
+      const timeEl = this.shadowRoot.querySelector('[data-time]');
       const ago = relTime(last_changed);
-      meta.textContent = n ? `${n} source${n === 1 ? '' : 's'}${ago ? ' · ' + ago : ''}` : '';
+      timeEl.textContent = ago || '';
 
       // Per-source breakdown
       const rows = perSourceRows(this._hass, species, source_levels);

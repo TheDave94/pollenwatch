@@ -181,12 +181,28 @@ def test_consensus_two_apart_is_mixed():
     assert res.diverged is True
 
 
-def test_consensus_single_source_omitted():
-    res = consensus({"open_meteo": 2})
+def test_consensus_single_source_passes_through():
+    """v2.0+: single-source species emit a pass-through consensus + source_count=1.
+    The card's n/m badge tells users the reading is single-source, not the
+    sensor's absence (which was v1.x behaviour)."""
+    res = consensus({"open_meteo": 2}, max_possible=6)
+    assert res.state == "high"          # pass-through of level 2
+    assert res.level == 2
+    assert res.diverged is False        # nothing to disagree with
+    assert res.source_levels == {"open_meteo": 2}
+    assert res.source_count == 1
+    assert res.max_possible == 6
+
+
+def test_consensus_zero_sources_omitted():
+    """A species with no sources covering it has no consensus at all."""
+    res = consensus({}, max_possible=6)
     assert res.state is None
     assert res.level is None
     assert res.diverged is False
-    assert res.source_levels == {"open_meteo": 2}
+    assert res.source_levels == {}
+    assert res.source_count == 0
+    assert res.max_possible == 6
 
 
 def test_consensus_reports_source_levels():

@@ -59,14 +59,34 @@ API_URL = "https://epin.lgl.bayern.de/api/measurements"
 # assigns the closest station).
 BAVARIA_BBOX = (47.27, 50.56, 8.98, 13.84)  # lat_min, lat_max, lon_min, lon_max
 
-# ePIN Latin genus name -> canonical key. ePIN reports 41 taxa; only the five
-# overlapping our six are mapped (no olive, like DWD; hazel/others ignored).
+# ePIN Latin taxon name -> canonical key. ePIN reports 41 taxa; v2.0+ maps 20
+# of them (the HIGH + MODERATE allergenic species per the locked matrix). The
+# remaining 21 ePIN taxa are LOW or NEGLIGIBLE potency (pine, spruce, fir,
+# larch, poplar, willow, maple, lime, etc.) and are deliberately dropped to
+# avoid misleading severity readings from non-allergenic high-count taxa.
+# Note: ePIN distinguishes "Quercus" (deciduous oak) from "Quercus ilex" (holm
+# oak / evergreen Mediterranean) — kept separate, different clinical profiles.
 _LATIN_TO_ALLERGEN: dict[str, str] = {
     "Alnus": "alder",
     "Betula": "birch",
+    "Corylus": "hazel",
     "Poaceae": "grass",
+    "Secale": "rye",
     "Artemisia": "mugwort",
     "Ambrosia": "ragweed",
+    "Plantago": "plantago",
+    "Urtica": "urtica",
+    "Fraxinus": "ash",
+    "Quercus": "oak",
+    "Quercus ilex": "holm_oak",
+    "Fagus": "beech",
+    "Ulmus": "elm",
+    "Carpinus": "carpinus",
+    "Platanus": "plane_tree",
+    "Juglans": "juglans",
+    "Chenopodium": "chenopodium",
+    "Rumex": "rumex",
+    "Asteraceae": "asteraceae",
 }
 
 # Automatic real-time stations only (network == "ePIN"): id -> (name, lat, lon).

@@ -71,7 +71,15 @@ SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
 
 # Config-entry / options keys. Location uses homeassistant.const
 # CONF_LATITUDE / CONF_LONGITUDE; these are PollenWatch-specific.
-CONF_ALLERGENS: Final = "allergens"
+#
+# Storage key for the user's species selection. From config-entry v3 the
+# canonical key is CONF_SELECTED_SPECIES ("selected_species"); the legacy
+# CONF_ALLERGENS ("allergens") is kept as the *form-field name* (so HA's
+# strings.json translation still resolves "allergens" → "Allergens") and
+# as a defensive read fallback on un-migrated v2 entries during a race.
+# The v2→v3 migration in __init__.py renames the storage key.
+CONF_SELECTED_SPECIES: Final = "selected_species"
+CONF_ALLERGENS: Final = "allergens"  # legacy/form-field; removed in v2.1+
 CONF_UPDATE_INTERVAL: Final = "update_interval"  # minutes
 
 # Personal sensitivity multipliers (per species), applied to raw values to give
@@ -174,6 +182,10 @@ def new_sources_config() -> dict[str, dict[str, object]]:
 
 # Defaults and guardrails.
 DEFAULT_ALLERGENS: Final[list[str]] = list(ALLERGENS)
+# v3+: same content as DEFAULT_ALLERGENS today (the canonical 6); kept under
+# the new name so v3 code reads the right symbol. Phase B+ derives this from
+# species_registry.CANONICAL_V1_SPECIES once base.ALLERGENS is retired.
+DEFAULT_SELECTED_SPECIES: Final[list[str]] = list(ALLERGENS)
 DEFAULT_UPDATE_INTERVAL_MIN: Final = 60
 # A free, keyless public API — never poll faster than hourly (see kickoff probe).
 MIN_UPDATE_INTERVAL_MIN: Final = 60
@@ -188,14 +200,13 @@ OPEN_METEO_FORECAST_DAYS: Final = 5
 FORECAST_DAYS: Final = 4
 
 # Human-readable allergen names (UI translations override these; used as a
-# fallback and for entity naming).
+# fallback and for entity naming). v2.0+: derived from the canonical species
+# registry so new species are automatically covered; the v1 6 keep the same
+# names (lossless — verified against species_registry.CANONICAL_SPECIES).
+from .sources.species_registry import CANONICAL_SPECIES as _CANONICAL  # noqa: E402
+
 ALLERGEN_NAMES: Final[dict[str, str]] = {
-    "alder": "Alder",
-    "birch": "Birch",
-    "grass": "Grass",
-    "mugwort": "Mugwort",
-    "olive": "Olive",
-    "ragweed": "Ragweed",
+    k: v.common for k, v in _CANONICAL.items()
 }
 
 # Extra-state-attribute keys exposed by sensors.
@@ -207,3 +218,10 @@ ATTR_SNAPPED_LON: Final = "snapped_longitude"
 ATTR_GRID_SHIFT_KM: Final = "grid_shift_km"
 ATTR_LAST_UPDATED: Final = "source_last_updated"
 ATTR_MULTIPLIER: Final = "multiplier"
+# v2.0: per-species source-count on the analytics consensus sensor.
+# source_count = how many of the user's enabled sources are currently
+# contributing readings for this species at this location.
+# max_possible_sources = global ceiling from species_registry (e.g. 6 for
+# alder, 1 for plantago).
+ATTR_SOURCE_COUNT: Final = "source_count"
+ATTR_MAX_SOURCES: Final = "max_possible_sources"

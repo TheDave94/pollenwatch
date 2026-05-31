@@ -43,13 +43,19 @@ SOURCE_NAME = "dwd"
 # benign failure mode is offering DWD to someone just outside the border.
 GERMANY_BBOX = (47.27, 55.06, 5.87, 15.04)  # lat_min, lat_max, lon_min, lon_max
 
-# DWD species name -> PollenWatch canonical key (DWD has no olive).
+# DWD species name -> PollenWatch canonical key. The s31fg.json feed reports 8
+# species total (DWD has no olive); all 8 mapped from v2.0+. rye = Secale
+# (cereal rye, broken out by DWD because of historical agricultural exposure
+# tracking in German cereal regions).
 DWD_SPECIES_TO_ALLERGEN: dict[str, str] = {
     "Erle": "alder",
     "Birke": "birch",
     "Graeser": "grass",
     "Beifuss": "mugwort",
     "Ambrosia": "ragweed",
+    "Hasel": "hazel",
+    "Esche": "ash",
+    "Roggen": "rye",
 }
 
 # DWD 7-point string -> numeric 0–3 (half-steps as .5). "-1"/unknown -> omit.

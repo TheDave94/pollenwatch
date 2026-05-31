@@ -60,14 +60,23 @@ BASE_URL = "https://pollen.googleapis.com/v1/forecast:lookup"
 #: Number of daily forecast values requested (Google allows 1–5).
 FORECAST_DAYS = 5
 
-#: Google plant code -> PollenWatch canonical key. Google returns many tree codes
-#: (ASH, OAK, etc.); only the six PollenWatch tracks are mapped — and Google is
-#: the only source that provides OLIVE.
+#: Google plant code -> PollenWatch canonical key. Google's enum has 17 plant
+#: codes; v2.0+ maps 11 of them (the EU-relevant HIGH + MODERATE potency set).
+#: Non-EU codes (JAPANESE_CEDAR, JAPANESE_CYPRESS) are excluded. LOW-potency
+#: codes (PINE, MAPLE, COTTONWOOD) are excluded on potency grounds. JUNIPER and
+#: CYPRESS_PINE both fold into cypress_family (the other 5 EU sources don't
+#: distinguish them — honest aggregation says merge into the family canonical).
 _PLANT_TO_ALLERGEN: dict[str, str] = {
     "ALDER": "alder",
+    "ASH": "ash",
     "BIRCH": "birch",
+    "CYPRESS_PINE": "cypress_family",
+    "ELM": "elm",
     "GRAMINALES": "grass",
+    "HAZEL": "hazel",
+    "JUNIPER": "cypress_family",
     "MUGWORT": "mugwort",
+    "OAK": "oak",
     "OLIVE": "olive",
     "RAGWEED": "ragweed",
 }

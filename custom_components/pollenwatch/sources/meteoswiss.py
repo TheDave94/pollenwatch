@@ -61,12 +61,16 @@ BASE_URL = "https://data.geo.admin.ch/ch.meteoschweiz.ogd-pollen"
 SWITZERLAND_BBOX = (45.80, 47.81, 5.95, 10.50)  # lat_min, lat_max, lon_min, lon_max
 
 # Hourly-column shortname -> canonical key (verified against the OGD parameter
-# metadata; "h0" = hourly average). Only the three that overlap our six canonical
-# allergens are mapped; hazel (kacoryh0), beech (kafaguh0), ash (kafraxh0) and
-# oak (kaquerh0) are measured but ignored.
+# metadata; "h0" = hourly average). All 7 measured taxa mapped from v2.0+
+# (was 3 in v1.x; the additional 4 — hazel/beech/ash/oak — are now in the
+# canonical species set).
 _CODE_TO_ALLERGEN: dict[str, str] = {
     "kaalnuh0": "alder",  # Alnus
     "kabetuh0": "birch",  # Betula
+    "kacoryh0": "hazel",  # Corylus
+    "kafaguh0": "beech",  # Fagus
+    "kafraxh0": "ash",    # Fraxinus
+    "kaquerh0": "oak",    # Quercus
     "khpoach0": "grass",  # Poaceae
 }
 

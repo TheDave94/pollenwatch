@@ -41,6 +41,7 @@ from .const import (
     CONF_COUNTRY,
     CONF_ENABLED,
     CONF_REGION,
+    CONF_SELECTED_SPECIES,
     CONF_SOURCES,
     CONF_STATION,
     CONF_UPDATE_INTERVAL,
@@ -68,6 +69,7 @@ from .sources.google import GoogleSource
 from .sources.meteoswiss import MeteoSwissSource
 from .sources.open_meteo import OpenMeteoSource
 from .sources.polleninformation import PolleninformationSource
+from .sources.species_registry import CANONICAL_SPECIES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -141,7 +143,15 @@ def build_coordinators(
     source, which maps it onto its own capabilities.
     """
     interval = _entry_option(entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_MIN)
-    allergens = _entry_option(entry, CONF_ALLERGENS, DEFAULT_ALLERGENS)
+    # v3 storage key (CONF_SELECTED_SPECIES). Falls back to legacy
+    # CONF_ALLERGENS only if the v3 key is ENTIRELY ABSENT — explicit
+    # empty `[]` stays empty (the "selection bounds the blowup" guarantee
+    # requires honouring deliberate emptiness, not silently restoring v1
+    # defaults). Production v3 entries always have CONF_SELECTED_SPECIES;
+    # the alias-fallback is for test fixtures or un-migrated edge cases.
+    allergens = _entry_option(entry, CONF_SELECTED_SPECIES, None)
+    if allergens is None:
+        allergens = _entry_option(entry, CONF_ALLERGENS, DEFAULT_ALLERGENS)
     latitude = entry.data[CONF_LATITUDE]
     longitude = entry.data[CONF_LONGITUDE]
     sources_cfg = _entry_option(entry, CONF_SOURCES, {})
@@ -307,7 +317,13 @@ class PollenWatchAnalyticsCoordinator(DataUpdateCoordinator[AnalyticsData]):
                 level = self._source_level(source_key, species, series)
                 if level is not None:
                     levels.setdefault(species, {})[source_key] = level
-        consensus_map = {sp: consensus(src) for sp, src in levels.items()}
+        # Pass each species's registry ceiling so the consensus result carries
+        # max_possible — the n/m badge denominator on the card. Unknown
+        # species fall back to len(src) (no badge ceiling claim).
+        consensus_map = {
+            sp: consensus(src, _registry_max_possible(sp))
+            for sp, src in levels.items()
+        }
         return AnalyticsData(percentiles=percentiles, consensus=consensus_map)
 
     async def _recorder_percentile(
@@ -365,7 +381,11 @@ def analytics_device_info(entry: PollenWatchConfigEntry) -> DeviceInfo:
 def multi_source_species(
     coordinators: dict[str, PollenWatchSourceCoordinator],
 ) -> list[str]:
-    """Species currently covered by >= 2 sources (consensus needs two)."""
+    """Species currently covered by >= 2 sources (divergence needs two).
+
+    Used to gate `DivergenceSensor` creation — single-source species never
+    emit a divergence entity (nothing to disagree with).
+    """
     counts: dict[str, int] = {}
     for coordinator in coordinators.values():
         if coordinator.data is None:
@@ -373,3 +393,32 @@ def multi_source_species(
         for species in coordinator.data.allergens:
             counts[species] = counts.get(species, 0) + 1
     return sorted(species for species, n in counts.items() if n >= 2)
+
+
+def all_covered_species(
+    coordinators: dict[str, PollenWatchSourceCoordinator],
+) -> list[str]:
+    """Species currently covered by >= 1 source.
+
+    Used to gate `ConsensusSensor` creation in v2.0+. Single-source species
+    still get a consensus sensor (pass-through level + n/m badge); the badge
+    is what tells users the reading is single-source, not the sensor's
+    absence.
+    """
+    covered: set[str] = set()
+    for coordinator in coordinators.values():
+        if coordinator.data is None:
+            continue
+        covered.update(coordinator.data.allergens.keys())
+    return sorted(covered)
+
+
+def _registry_max_possible(species: str) -> int:
+    """Global source-count ceiling for a species, from the canonical registry.
+
+    The n/m badge on the card uses this as the denominator. Returns 0 for
+    species not in the registry (defensive — shouldn't happen for canonical
+    species, but a stale storage entry shouldn't crash analytics).
+    """
+    info = CANONICAL_SPECIES.get(species)
+    return len(info.sources) if info else 0

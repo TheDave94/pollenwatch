@@ -4,21 +4,31 @@
     "step": {
       "user": {
         "title": "Add a PollenWatch location",
-        "description": "Pollen data comes from the Copernicus Atmosphere Monitoring Service (CAMS) via Open-Meteo and covers Europe. The location is fixed once set — to move it later, remove and re-add the integration.",
+        "description": "Pollen data comes from the Copernicus Atmosphere Monitoring Service (CAMS) via Open-Meteo (always-on) and up to five optional regional sources you can enable in Options after setup. The location is fixed once set — to move it later, remove and re-add the integration.",
         "data": {
-          "location": "Location",
-          "allergens": "Allergens"
+          "location": "Location"
         },
         "data_description": {
-          "location": "Pick the point to monitor. Open-Meteo snaps it to the nearest ~10 km grid cell.",
-          "allergens": "Which pollen species to create sensors for."
+          "location": "Pick the point to monitor. Open-Meteo snaps it to the nearest ~10 km grid cell."
+        }
+      },
+      "species": {
+        "title": "Species to track",
+        "description": "Species commonly tracked in your country ({country}) are pre-selected ({default_count} of {available_count} locally-available). Toggle the cross-validated core for a one-click default of the {core_count} most-validated species — alder, birch, grass, hazel, mugwort, ragweed, olive, ash. Only species at least one source can cover at your location appear; enable additional sources in Options after setup to unlock more.",
+        "data": {
+          "selected_species": "Species to track",
+          "use_cross_validated_core": "Use cross-validated core (overrides selection above)"
+        },
+        "data_description": {
+          "selected_species": "Each selected species creates sensors per active source. Unselected species don't create any entities, keeping the install lean.",
+          "use_cross_validated_core": "The 8 species with both high allergenic potency AND coverage from at least 3 sources globally — a sane default for users who don't want to think about it."
         }
       }
     },
     "error": {
       "out_of_coverage": "This location is outside CAMS European coverage. Choose a location within Europe.",
       "cannot_connect": "Could not reach Open-Meteo. Check your connection and try again.",
-      "no_allergens": "Select at least one allergen."
+      "no_species": "Select at least one species (or toggle the cross-validated core)."
     },
     "abort": {
       "already_configured": "This location is already configured."
@@ -30,7 +40,7 @@
         "title": "PollenWatch options",
         "description": "The location is fixed; remove and re-add the integration to change it.",
         "data": {
-          "allergens": "Allergens",
+          "selected_species": "Species to track",
           "update_interval": "Update interval (minutes)",
           "enable_polleninformation": "Enable polleninformation.at (second source)",
           "country": "Country (polleninformation)",
@@ -63,7 +73,7 @@
       }
     },
     "error": {
-      "no_allergens": "Select at least one allergen.",
+      "no_species": "Select at least one species.",
       "country_required": "Select a country to enable polleninformation.",
       "api_key_required": "Enter the API key for the source you enabled.",
       "invalid_api_key": "The source rejected the API key. Check it and try again.",

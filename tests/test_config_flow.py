@@ -16,6 +16,7 @@ from custom_components.pollenwatch.const import (
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
+    CONF_SELECTED_SPECIES,
     CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
@@ -51,17 +52,29 @@ async def _start(hass: HomeAssistant):
 
 
 async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
+    """v2.0+ two-step flow: location → species → entry.
+
+    The user step is now location-only; species selection is the next
+    step with region-aware preselection.
+    """
     result = await _start(hass)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
 
-    with (
-        patch(_PROBE, return_value=None),
-        patch(_SETUP, return_value=True) as mock_setup,
-    ):
+    # Step 1: submit location, advance to species step
+    with patch(_PROBE, return_value=None):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {"location": _LOCATION, CONF_ALLERGENS: ["grass", "birch"]},
+            {"location": _LOCATION},
+        )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "species"
+
+    # Step 2: submit species, create entry
+    with patch(_SETUP, return_value=True) as mock_setup:
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_SELECTED_SPECIES: ["grass", "birch"]},
         )
         await hass.async_block_till_done()
 
@@ -69,10 +82,42 @@ async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
     assert result["data"] == {
         CONF_LATITUDE: 47.07,
         CONF_LONGITUDE: 15.44,
-        CONF_ALLERGENS: ["grass", "birch"],
+        CONF_SELECTED_SPECIES: ["grass", "birch"],
     }
     assert result["result"].unique_id == "47.0700_15.4400"
     assert len(mock_setup.mock_calls) == 1
+
+
+async def test_quick_pick_overrides_selection(hass: HomeAssistant) -> None:
+    """The cross-validated quick-pick toggle replaces the user's selection
+    with the 8 core species (locked Phase D contract)."""
+    from custom_components.pollenwatch.config_flow import CONF_QUICK_PICK_CORE
+    from custom_components.pollenwatch.region_defaults import HIGH_POTENCY_CORE
+
+    result = await _start(hass)
+    with patch(_PROBE, return_value=None):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"location": _LOCATION},
+        )
+    assert result["step_id"] == "species"
+
+    # Submit with quick-pick toggle TRUE — even with a minimal valid
+    # selection (just grass), the toggle overrides to the full 8-species
+    # cross-validated core.
+    with patch(_SETUP, return_value=True):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_SELECTED_SPECIES: ["grass"],
+                CONF_QUICK_PICK_CORE: True,
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    selected = result["data"][CONF_SELECTED_SPECIES]
+    # Should be exactly the 8 core species (test env has all available).
+    assert set(selected) == set(HIGH_POTENCY_CORE), selected
 
 
 async def test_user_flow_out_of_coverage_shows_error(hass: HomeAssistant) -> None:
@@ -80,7 +125,7 @@ async def test_user_flow_out_of_coverage_shows_error(hass: HomeAssistant) -> Non
     with patch(_PROBE, return_value="out_of_coverage"):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {"location": {"latitude": 40.71, "longitude": -74.0}, CONF_ALLERGENS: ["grass"]},
+            {"location": {"latitude": 40.71, "longitude": -74.0}},
         )
 
     assert result["type"] is FlowResultType.FORM
@@ -92,22 +137,28 @@ async def test_user_flow_cannot_connect_shows_error(hass: HomeAssistant) -> None
     with patch(_PROBE, return_value="cannot_connect"):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {"location": _LOCATION, CONF_ALLERGENS: ["grass"]},
+            {"location": _LOCATION},
         )
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
 
 
-async def test_user_flow_requires_an_allergen(hass: HomeAssistant) -> None:
+async def test_species_flow_requires_a_species(hass: HomeAssistant) -> None:
+    """The species step rejects empty selection (no quick-pick override).
+    Renamed from v1.x's test_user_flow_requires_an_allergen: in v2.0+ the
+    allergen check moves to the species step, not the user step."""
     result = await _start(hass)
+    with patch(_PROBE, return_value=None):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"location": _LOCATION},
+        )
+    assert result["step_id"] == "species"
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {"location": _LOCATION, CONF_ALLERGENS: []},
+        result["flow_id"], {CONF_SELECTED_SPECIES: []},
     )
-
     assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {CONF_ALLERGENS: "no_allergens"}
+    assert result["errors"] == {CONF_SELECTED_SPECIES: "no_species"}
 
 
 async def test_duplicate_location_aborts(hass: HomeAssistant) -> None:
@@ -116,8 +167,7 @@ async def test_duplicate_location_aborts(hass: HomeAssistant) -> None:
     result = await _start(hass)
     with patch(_PROBE, return_value=None):
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {"location": _LOCATION, CONF_ALLERGENS: ["grass"]},
+            result["flow_id"], {"location": _LOCATION},
         )
 
     assert result["type"] is FlowResultType.ABORT
@@ -144,11 +194,12 @@ async def test_options_flow_updates_allergens_and_interval(
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {CONF_ALLERGENS: ["grass"], CONF_UPDATE_INTERVAL: 120},
+        {CONF_SELECTED_SPECIES: ["grass"], CONF_UPDATE_INTERVAL: 120},
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options[CONF_ALLERGENS] == ["grass"]
+    # v3 storage key — options flow writes CONF_SELECTED_SPECIES.
+    assert entry.options[CONF_SELECTED_SPECIES] == ["grass"]
     assert entry.options[CONF_UPDATE_INTERVAL] == 120
 
 
@@ -161,7 +212,7 @@ async def test_options_enable_polleninformation(hass: HomeAssistant) -> None:
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
             {
-                CONF_ALLERGENS: ["grass", "birch"],
+                CONF_SELECTED_SPECIES: ["grass", "birch"],
                 CONF_UPDATE_INTERVAL: 60,
                 CONF_ENABLE_PI: True,
                 CONF_COUNTRY: "AT",
@@ -185,7 +236,7 @@ async def test_options_pi_out_of_coverage_errors(hass: HomeAssistant) -> None:
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
             {
-                CONF_ALLERGENS: ["grass", "birch"],
+                CONF_SELECTED_SPECIES: ["grass", "birch"],
                 CONF_UPDATE_INTERVAL: 60,
                 CONF_ENABLE_PI: True,
                 CONF_COUNTRY: "AT",
@@ -205,7 +256,7 @@ async def test_options_store_sensitivity_multiplier(hass: HomeAssistant) -> None
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
             CONF_UPDATE_INTERVAL: 60,
             CONF_ENABLE_PI: False,
             _sensitivity_field("grass"): 1.8,
@@ -229,7 +280,7 @@ async def test_options_pi_requires_country_and_key(hass: HomeAssistant) -> None:
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
             CONF_UPDATE_INTERVAL: 60,
             CONF_ENABLE_PI: True,
         },
