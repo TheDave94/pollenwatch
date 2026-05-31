@@ -250,11 +250,11 @@ async def _hacs_install(ws: HAWebSocket, full_name: str, version: str) -> None:
     log(f"  ok   {full_name}@{version} downloaded to /config/custom_components/pollenwatch/")
 
 
-def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
+def wait_for_coordinator_refresh(client: HAClient, timeout: int = 180) -> None:
     """Poll until every pollenwatch entity has a non-null state AND the count
-    is stable across consecutive polls. Returns True on success, False on
-    timeout (caller decides whether ceiling-hit is fatal — for the v1
-    cleanroom it is WARN+proceed).
+    is stable across consecutive polls. On ceiling-hit: die() with exit
+    code 10 (distinct from any verify.py gate exit, distinct from generic
+    die's exit 1).
 
     Two checks required before declaring complete (avoids a race where the
     analytics coordinator finishes first, all its few entities have a state,
@@ -263,6 +263,12 @@ def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
       (a) every currently-loaded pw entity has a non-null state
       (b) entity count is STABLE across at least 2 consecutive polls
           (i.e. no new entities arrived since the last poll)
+
+    On ceiling-hit: previously this WARNed-and-returned-False; main() then
+    proceeded to BEFORE snapshot on partial state, and Gate C cascade-failed
+    on state=None entities. The fix: surface a distinct "SETTLE TIMEOUT"
+    fatal error so the cleanroom doesn't conflate infrastructure slowness
+    with migration regression. Snapshot is NEVER taken on partial settle.
     """
     log(
         f"  polling for coordinator first-refresh (every pw entity has a state, "
@@ -292,10 +298,13 @@ def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
         else:
             stable_polls = 0
         prev_count = current_count
-        # All states have at least a `state` key; we want != "unknown" (or
-        # "unavailable", which means the coordinator ran but the source had no
-        # data — that's a legitimate refresh-complete state).
-        unready = [s for s in pw_states if s.get("state") in (None, "unknown")]
+        # "unready" = state is None (coordinator has not run for this
+        # entity yet). "unknown" is NOT unready: for recent_percentile
+        # sensors on a fresh install with no recorder history, "unknown"
+        # is the legitimate populated state. This matches Gate C's
+        # semantics in verify.py, which only flags state=None entities
+        # as a problem.
+        unready = [s for s in pw_states if s.get("state") is None]
         if len(unready) != last_unready:
             log(
                 f"    {current_count - len(unready)}/{current_count} ready "
@@ -308,10 +317,16 @@ def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
                 f"{time.monotonic() - t0:.1f}s ({current_count} entities, "
                 f"count stable across {stable_polls + 1} polls)"
             )
-            return True
+            return
         time.sleep(3)
-    log(f"  WARN coordinator first-refresh did not complete within {timeout}s; proceeding")
-    return False
+    die(
+        f"SETTLE TIMEOUT: did not reach stable entity state in "
+        f"{timeout}s (BEFORE-snapshot settle). This is an "
+        f"infrastructure/timing failure, NOT a migration regression. "
+        f"Re-run; if it persists, raise the ceiling or investigate "
+        f"runner performance. Snapshot NOT taken — gates will not run.",
+        code=10,
+    )
 
 
 # ---------- entry creation ----------
@@ -486,8 +501,33 @@ def main() -> int:
     # Now that entries exist, the component should be loaded — sanity check.
     wait_for_component(client, "pollenwatch", timeout=30)
 
-    # Settle.
-    wait_for_coordinator_refresh(client, timeout=90)
+    # Defense-in-depth (matches upgrade.py): wait for ALL pollenwatch entries
+    # to be in state="loaded" before settle, so the settle loop sees the
+    # full entity set rather than a mid-serialization subset. Less critical
+    # in bootstrap (entries are created synchronously via flow API) than in
+    # upgrade.py (where HA restarts and entries set up async), but safer.
+    log("  polling for all pollenwatch config entries loaded...")
+    t0 = time.monotonic()
+    entries_deadline = t0 + 60
+    while time.monotonic() < entries_deadline:
+        entries = client.list_config_entries(domain="pollenwatch")
+        if entries and all(e.get("state") == "loaded" for e in entries):
+            log(
+                f"  ok   {len(entries)} entries loaded in "
+                f"{time.monotonic() - t0:.1f}s"
+            )
+            break
+        time.sleep(2)
+    else:
+        die(
+            "Not all pollenwatch config entries reached state='loaded' "
+            "within 60s. Infrastructure issue, NOT a migration regression.",
+            code=10,
+        )
+
+    # Settle. (180s ceiling, distinct SETTLE TIMEOUT fatal on ceiling-hit —
+    # see wait_for_coordinator_refresh docstring.)
+    wait_for_coordinator_refresh(client, timeout=180)
 
     # Snapshot.
     log("taking BEFORE snapshot:")
