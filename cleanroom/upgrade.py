@@ -89,10 +89,24 @@ def main() -> int:
     log(f"  ok   pollenwatch loaded in {time.monotonic() - t0:.1f}s")
 
     # 3. Settle — poll for refresh, 90s ceiling.
-    log("polling for coordinator first-refresh post-upgrade (ceiling 90s)...")
+    #
+    # Two checks required before declaring complete (avoids a race where the
+    # analytics coordinator finishes first, all its few entities have a state,
+    # and the loop exits BEFORE the per-source coordinators register their
+    # entities — fast CI runners reproduce this consistently):
+    #   (a) every currently-loaded pw entity has a non-null state
+    #   (b) entity count is STABLE across at least 2 consecutive polls
+    #       (i.e. no new entities arrived since the last poll)
+    # Both conditions must hold simultaneously.
+    log(
+        "polling for coordinator first-refresh post-upgrade "
+        "(ceiling 90s, stable-count required)..."
+    )
     t0 = time.monotonic()
     deadline = t0 + 90
     last_unready = -1
+    prev_count = -1
+    stable_polls = 0
     while time.monotonic() < deadline:
         all_states = client.all_states()
         pw_states = [
@@ -101,16 +115,26 @@ def main() -> int:
                 ("sensor.pollenwatch_", "binary_sensor.pollenwatch_")
             )
         ]
+        current_count = len(pw_states)
+        if current_count == prev_count:
+            stable_polls += 1
+        else:
+            stable_polls = 0
+        prev_count = current_count
         if pw_states:
             unready = [s for s in pw_states if s.get("state") in (None, "unknown")]
             if len(unready) != last_unready:
                 log(
-                    f"    {len(pw_states) - len(unready)}/{len(pw_states)} ready "
-                    f"(waiting on {len(unready)})"
+                    f"    {current_count - len(unready)}/{current_count} ready "
+                    f"(waiting on {len(unready)}; stable_polls={stable_polls})"
                 )
                 last_unready = len(unready)
-            if not unready:
-                log(f"  ok   refresh complete in {time.monotonic() - t0:.1f}s")
+            if not unready and stable_polls >= 2:
+                log(
+                    f"  ok   refresh complete in {time.monotonic() - t0:.1f}s "
+                    f"({current_count} entities, count stable across "
+                    f"{stable_polls + 1} polls)"
+                )
                 break
         time.sleep(3)
     else:

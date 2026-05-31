@@ -251,16 +251,28 @@ async def _hacs_install(ws: HAWebSocket, full_name: str, version: str) -> None:
 
 
 def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
-    """Poll until every pollenwatch entity has a non-null state object. Returns
-    True on success, False on timeout (caller decides whether ceiling-hit is
-    fatal — for the v1 cleanroom it is WARN+proceed)."""
+    """Poll until every pollenwatch entity has a non-null state AND the count
+    is stable across consecutive polls. Returns True on success, False on
+    timeout (caller decides whether ceiling-hit is fatal — for the v1
+    cleanroom it is WARN+proceed).
+
+    Two checks required before declaring complete (avoids a race where the
+    analytics coordinator finishes first, all its few entities have a state,
+    and the loop exits BEFORE the per-source coordinators register their
+    entities — fast CI runners reproduce this consistently):
+      (a) every currently-loaded pw entity has a non-null state
+      (b) entity count is STABLE across at least 2 consecutive polls
+          (i.e. no new entities arrived since the last poll)
+    """
     log(
-        f"  polling for coordinator first-refresh (every pw entity has a state); "
-        f"ceiling {timeout}s..."
+        f"  polling for coordinator first-refresh (every pw entity has a state, "
+        f"count stable); ceiling {timeout}s..."
     )
     t0 = time.monotonic()
     deadline = t0 + timeout
     last_unready = -1
+    prev_count = -1
+    stable_polls = 0
     while time.monotonic() < deadline:
         all_states = client.all_states()
         pw_states = [
@@ -270,22 +282,31 @@ def wait_for_coordinator_refresh(client: HAClient, timeout: int = 90) -> bool:
             )
         ]
         if not pw_states:
+            prev_count = -1
+            stable_polls = 0
             time.sleep(2)
             continue
-        # All states have at least an `state` key; we want != "unknown" (or
+        current_count = len(pw_states)
+        if current_count == prev_count:
+            stable_polls += 1
+        else:
+            stable_polls = 0
+        prev_count = current_count
+        # All states have at least a `state` key; we want != "unknown" (or
         # "unavailable", which means the coordinator ran but the source had no
         # data — that's a legitimate refresh-complete state).
         unready = [s for s in pw_states if s.get("state") in (None, "unknown")]
         if len(unready) != last_unready:
             log(
-                f"    {len(pw_states) - len(unready)}/{len(pw_states)} ready "
-                f"(waiting on {len(unready)})"
+                f"    {current_count - len(unready)}/{current_count} ready "
+                f"(waiting on {len(unready)}; stable_polls={stable_polls})"
             )
             last_unready = len(unready)
-        if not unready:
+        if not unready and stable_polls >= 2:
             log(
                 f"  ok   coordinator refresh complete in "
-                f"{time.monotonic() - t0:.1f}s ({len(pw_states)} entities)"
+                f"{time.monotonic() - t0:.1f}s ({current_count} entities, "
+                f"count stable across {stable_polls + 1} polls)"
             )
             return True
         time.sleep(3)
