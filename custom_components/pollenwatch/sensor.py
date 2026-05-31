@@ -1,9 +1,9 @@
 """Sensor entities for PollenWatch.
 
-Milestone 2: one sensor per Open-Meteo allergen. State is the current value in
-grains/m³; the daily-peak forecast and provenance live in attributes. Entities
-sit under a per-source device (see MILESTONE_2.md Q1) and are named so their
-entity IDs slug to ``sensor.pollenwatch_open_meteo_<allergen>`` (see §7).
+One sensor per (source, species) pair. State is the current value in the
+source's native units; the daily-peak forecast and provenance live in
+attributes. Entities sit under a per-source device and are named so their
+entity IDs slug to ``sensor.pollenwatch_<source>_<species>``.
 """
 
 from __future__ import annotations

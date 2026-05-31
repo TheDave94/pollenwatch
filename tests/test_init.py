@@ -120,7 +120,7 @@ async def test_setup_creates_sensors_with_expected_naming(
 
         assert entry.state is ConfigEntryState.LOADED
 
-        # Branded, ecosystem-style entity ID (see MILESTONE_2.md Q2).
+        # Branded, ecosystem-style entity ID (sensor.pollenwatch_<source>_<species>).
         state = hass.states.get("sensor.pollenwatch_open_meteo_grass")
         assert state is not None
         assert float(state.state) == 20.8
