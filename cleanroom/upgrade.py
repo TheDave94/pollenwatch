@@ -108,7 +108,8 @@ def main() -> int:
     # 4. AFTER snapshot — include only post-upgrade logs.
     log("taking AFTER snapshot:")
     after_dir = run_dir / "snapshots" / "after"
-    snap = take_snapshot(client, ws, after_dir, container, meta["run_id"], since=upgrade_iso)
+    snap = take_snapshot(client, ws, after_dir, container, meta["run_id"],
+                         config_dir=run_dir / "config", since=upgrade_iso)
     log(f"  ok   snapshot: {snap['pw_entity_count']} entities, {snap['pw_config_entry_count']} entries")
 
     print(f"\nRUN_DIR: {run_dir}")

@@ -444,7 +444,8 @@ def main() -> int:
     # Snapshot.
     log("taking BEFORE snapshot:")
     before_dir = run_dir / "snapshots" / "before"
-    snap_meta = take_snapshot(client, ws, before_dir, container_name, run_id, since=None)
+    snap_meta = take_snapshot(client, ws, before_dir, container_name, run_id,
+                              config_dir=run_dir / "config", since=None)
     log(f"  ok   snapshot: {snap_meta['pw_entity_count']} entities, {snap_meta['pw_config_entry_count']} entries")
 
     # Final summary.

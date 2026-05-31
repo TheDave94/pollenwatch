@@ -3,12 +3,17 @@ time. Used for the BEFORE / AFTER snapshots that the verifier diffs.
 
 A snapshot is a directory containing:
 
-  config_entries.json   — all pollenwatch entries (data, options, version, etc.)
+  config_entries.json   — all pollenwatch entries (data, options, version, etc.),
+                          sourced from .storage/core.config_entries (NOT the WS
+                          config_entries/get summary, which omits data/options).
   entity_registry.json  — pollenwatch entities (entity_id, unique_id, platform, ...)
   device_registry.json  — all devices (filtered to those with pollenwatch entities)
   states.json           — current state object for each pollenwatch entity
   logs.txt              — container logs since the snapshot point
   meta.json             — snapshot timestamp, HA version, pollenwatch version, run_id
+
+The .storage read uses sudo because HA writes its storage files as root inside
+the docker container (passwordless sudo is a documented cleanroom prerequisite).
 """
 from __future__ import annotations
 
@@ -23,26 +28,38 @@ from .ha_api import HAClient
 from .ha_ws import HAWebSocket
 
 
+def _read_storage_config_entries(config_dir: Path, domain: str | None = None) -> list[dict]:
+    """Read .storage/core.config_entries from the bind-mount via sudo cat.
+    Returns the entries list, optionally filtered by domain.
+
+    Source of truth for FULL entry data (data, options, version, minor_version,
+    unique_id, source, etc). The WS config_entries/get command returns a
+    summary shape that omits data/options — useless for migration verification."""
+    storage_path = config_dir / ".storage" / "core.config_entries"
+    res = subprocess.run(
+        ["sudo", "cat", str(storage_path)],
+        capture_output=True, text=True, check=True,
+    )
+    blob = json.loads(res.stdout)
+    entries = blob.get("data", {}).get("entries", [])
+    if domain:
+        entries = [e for e in entries if e.get("domain") == domain]
+    return entries
+
+
 def _iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 async def _take_async(client: HAClient, ws: HAWebSocket, out_dir: Path,
                       container_name: str, since: str | None,
-                      run_id: str) -> dict:
+                      run_id: str, config_dir: Path) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Pollenwatch config entries
-    pw_entries_summary = client.list_config_entries(domain="pollenwatch")
-    full_entries: list[dict] = []
-    for summary in pw_entries_summary:
-        full = await ws.config_entry_get(summary["entry_id"])
-        if full:
-            full_entries.append(full)
-        else:
-            # Fall back to the summary; data/options may be missing but
-            # version + entry_id + title are there.
-            full_entries.append(summary)
+    # 1. Pollenwatch config entries — from .storage (the source of truth for
+    #    data/options/version). The WS config_entries/get returns summaries
+    #    only; useless for migration verification.
+    full_entries = _read_storage_config_entries(config_dir, domain="pollenwatch")
     (out_dir / "config_entries.json").write_text(json.dumps(full_entries, indent=2))
 
     # 2. Entity registry (filter to pollenwatch)
@@ -97,11 +114,14 @@ def take_snapshot(
     out_dir: Path,
     container_name: str,
     run_id: str,
+    config_dir: Path,
     since: str | None = None,
 ) -> dict:
-    """Synchronous wrapper. `since` is a docker --since value (RFC3339 or
-    relative like '5m'); None = full container log."""
-    return asyncio.run(_take_async(client, ws, out_dir, container_name, since, run_id))
+    """Synchronous wrapper. `config_dir` is the HA bind-mount path (its
+    .storage/core.config_entries gets read via sudo for full entry data).
+    `since` is a docker --since value (RFC3339 or relative like '5m'); None
+    = full container log."""
+    return asyncio.run(_take_async(client, ws, out_dir, container_name, since, run_id, config_dir))
 
 
 def load_snapshot(snapshot_dir: Path) -> dict:

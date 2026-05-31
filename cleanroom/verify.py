@@ -67,22 +67,50 @@ def _find_entry_by_title_contains(entries: list[dict], needle: str) -> dict | No
 
 
 def _find_entry_for_matrix(entries: list[dict], matrix_entry: dict) -> dict | None:
-    """The bootstrap creates entries via config-flow; the title is auto-derived
-    from the location. We match by approximate location (lat/lon proximity)."""
+    """Match an entry from the snapshot against a matrix.json entry.
+
+    Tries three strategies in order, each with appropriate tolerance for the
+    rounding/shape variations we've actually seen:
+
+      1. `data.latitude` + `data.longitude` (flat — pollenwatch v3 schema).
+         Tolerance: 0.001 (1m at the equator). Matches exact stored values.
+      2. `data.location.{latitude,longitude}` (nested — defensive for older
+         shapes or if v3 ever wraps location). Same tolerance.
+      3. Title parse: pollenwatch sets entry title to
+         "PollenWatch (LAT, LON)" with 3-decimal rounding (e.g.
+         "PollenWatch (47.071, 15.440)" for 47.0707, 15.4395). Compare with
+         tolerance 0.01 to absorb the rounding.
+
+    Returns the matching entry dict, or None."""
+    import re as _re
     target_lat = matrix_entry["latitude"]
     target_lon = matrix_entry["longitude"]
+
+    def _near(a: float, b: float, tol: float) -> bool:
+        return a is not None and b is not None and abs(a - b) < tol
+
+    title_coord_re = _re.compile(r"\(([-\d.]+)\s*,\s*([-\d.]+)\)")
+
     for e in entries:
-        data = (e.get("data") or {})
-        # Try common shapes:
-        loc = data.get("location") or {}
-        elat = loc.get("latitude", data.get("latitude"))
-        elon = loc.get("longitude", data.get("longitude"))
-        if elat is None or elon is None:
-            continue
-        if abs(elat - target_lat) < 0.01 and abs(elon - target_lon) < 0.01:
+        data = e.get("data") or {}
+        # Strategy 1: flat data.latitude/longitude (v3 schema).
+        if _near(data.get("latitude"), target_lat, 0.001) and _near(data.get("longitude"), target_lon, 0.001):
             return e
-    # Fallback: title match by location_label.
-    return _find_entry_by_title_contains(entries, matrix_entry["location_label"])
+        # Strategy 2: nested location dict.
+        loc = data.get("location") or {}
+        if _near(loc.get("latitude"), target_lat, 0.001) and _near(loc.get("longitude"), target_lon, 0.001):
+            return e
+        # Strategy 3: parse title "PollenWatch (LAT, LON)".
+        m = title_coord_re.search(e.get("title", "") or "")
+        if m:
+            try:
+                tlat = float(m.group(1))
+                tlon = float(m.group(2))
+                if _near(tlat, target_lat, 0.01) and _near(tlon, target_lon, 0.01):
+                    return e
+            except ValueError:
+                pass
+    return None
 
 
 # ---------- allowlist ----------
