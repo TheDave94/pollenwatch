@@ -498,8 +498,9 @@ def main() -> int:
     # Now that entries exist, the component should be loaded — sanity check.
     wait_for_component(client, "pollenwatch", timeout=30)
 
-    # Settle.
-    wait_for_coordinator_refresh(client, timeout=90)
+    # Settle. (180s ceiling, distinct SETTLE TIMEOUT fatal on ceiling-hit —
+    # see wait_for_coordinator_refresh docstring.)
+    wait_for_coordinator_refresh(client, timeout=180)
 
     # Snapshot.
     log("taking BEFORE snapshot:")
