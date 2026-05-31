@@ -1,0 +1,32 @@
+name: Release Please
+
+# Maintains a permanent "Release PR" that bumps the version + updates the
+# changelog from conventional-commit messages. Merging the Release PR cuts
+# a git tag + GitHub Release; HACS picks the release up directly from the tag.
+#
+# Uses the default GITHUB_TOKEN (not a GitHub App) because no downstream
+# workflow listens on `release:` — release-build artifacts aren't needed
+# (HACS ships source from the tag). If a release-triggered workflow is ever
+# added, switch to an App token: GITHUB_TOKEN-initiated events are suppressed
+# from triggering downstream workflows (anti-loop guarantee).
+#
+# SHA-pinned to v5.0.0 (matches the oriel-dashboard pin).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
