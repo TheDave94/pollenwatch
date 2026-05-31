@@ -200,14 +200,18 @@ single-source mode — desaturated, with an explicit "single source" label, so t
 honesty gradient is visible at a glance). The 3-level scale itself
 (`none`/`low`/`high`) and its grains/m³ boundaries are sourced from
 EAACI/Pfaar position papers and used by CAMS/Climate-ADAPT (see
-[ANALYTICS.md](ANALYTICS.md)). The v2.0 expansion to 24 species extended that
-threshold table by family-bracket analogy — the same approach already used
-within v1 for alder/mugwort. Per-species evidence-tier (which species have
-independently-cited cutoffs vs. which inherit a relative's bracket) is being
-verified in
-[#3](https://github.com/TheDave94/pollenwatch/issues/3); until that lands,
-the README does not name a specific "exact" list, and the new `level`
-attribute (v2.1) deliberately omits a `threshold_status` field.
+[ANALYTICS.md](ANALYTICS.md)). v2.2 lands the per-species evidence-tier
+review from [#3](https://github.com/TheDave94/pollenwatch/issues/3):
+every raw and consensus sensor now carries a `threshold_status` attribute
+classifying the species into one of 5 tiers — `species_specific` (peer-reviewed
+per-species cutoff exists; 13 species), `family_eaaci` (EAACI's actual family
+group, no species refinement; 5 species), `established_no_threshold`
+(characterised allergen but no published numeric cutoff, working bracket
+carried; 3 species), `family_analogy` (analogy-only, weakest; 2 species), and
+`fungal` (Alternaria, separate evidence base). v2.2 also refines 6 numeric
+brackets per the same review (ragweed 5/20, olive 10/200, birch 20/100, alder
+45/80, hazel 35/80, mugwort 3/50 — see the v2.2 release notes for the cited
+basis per species).
 
 ## Dashboard card
 
@@ -281,17 +285,29 @@ maintainer uses daily.
   enabling one of those is its first real-world run. Please
   [open an issue](https://github.com/TheDave94/pollenwatch/issues) if anything
   looks off.
-- **Per-species threshold provenance is being verified**
-  ([#3](https://github.com/TheDave94/pollenwatch/issues/3)). The 3-level
-  scale (`none`/`low`/`high`) and its grains/m³ boundaries are EAACI/Pfaar-sourced
-  and CAMS/Climate-ADAPT-used (see [ANALYTICS.md](ANALYTICS.md)). The v2.0
-  expansion to 24 species extended that table by family-bracket analogy —
-  the same approach v1 already used for alder/mugwort within the original 6.
-  Honest about the numbers, not yet rigorous about which species have
-  independently-cited per-species cutoffs vs. inherit a relative's bracket.
-  Treat the `low`/`high` buckets as "in season" / "at or above peak" for every
-  species; per-species evidence-tier will be documented once the literature
-  review lands.
+- **Per-species threshold-evidence tiers are now classified** but the
+  underlying number is *evidence-graded, not certainty-graded*
+  ([#3](https://github.com/TheDave94/pollenwatch/issues/3), v2.2 review).
+  The 3-level scale (`none`/`low`/`high`) and its grains/m³ boundaries are
+  EAACI/Pfaar-sourced and CAMS/Climate-ADAPT-used. Per-species evidence sits
+  in 5 tiers exposed as the `threshold_status` attribute on every raw and
+  consensus sensor — see the Entities section above. Important honest
+  caveats from the review: Tier-2 "numbers" are *ranges, not points* (birch
+  20–155 across studies, olive 162–400, grass explicitly "no consensus"); the
+  threshold concept itself is contested (a recent EJACI study argues there's
+  no threshold below which sensitive people feel nothing — symptoms rise from
+  the first grains); per-spore allergen content varies up to 15× day-to-day
+  for alternaria. The five-tier label tracks **evidence provenance**, not
+  clinical certainty.
+- **v2.2 numeric refinements (behavior change).** Six species got refined
+  brackets per the review: ragweed (3/50 → 5/20 — was under-warning), olive
+  (10/100 → 10/200 — was over-warning regionally), birch (10/100 → 20/100 —
+  peak validated by Struß 2025 controlled chamber, low refined per
+  Aerobiologia 2021), alder (10/100 → 45/80 — Rapiejko 2007 per-species
+  evidence), hazel (10/100 → 35/80 — same), mugwort (10/100 → 3/50 — fixes a
+  v1 class-error: mugwort is a herb, not a tree). Existing entities may flip
+  state on upgrade (e.g. olive at 150 grains/m³ was `high`, becomes `low`);
+  entity_ids are preserved, only state values change.
 - **alternaria is a fungal spore, not pollen** — kept opt-in (never
   preselected). Useful for people who track it alongside pollen; safe to
   ignore otherwise.

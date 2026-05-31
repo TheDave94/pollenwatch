@@ -59,6 +59,7 @@ from .coordinator import (
     all_covered_species,
     analytics_device_info,
 )
+from .sources.species_registry import CANONICAL_SPECIES
 
 # Coordinator-driven entities with no per-entity writes — HA serialization
 # is unnecessary; declare parallel updates to keep the silver rule explicit.
@@ -78,6 +79,11 @@ ATTR_DAYS_OF_HISTORY = "days_of_history"
 ATTR_LEVEL = "level"
 ATTR_LEVEL_LABEL = "level_label"
 ATTR_SOURCE_LEVELS = "source_levels"
+# v2.2: per-species threshold evidence-tier (5-value enum from
+# species_registry.ThresholdStatus). Surfaced on the raw + consensus
+# sensors so downstream consumers can mark "this 'high' is on a borrowed
+# family bracket" without consulting a second data source.
+ATTR_THRESHOLD_STATUS = "threshold_status"
 
 
 def _source_device_info(entry: PollenWatchConfigEntry, source_key: str) -> DeviceInfo:
@@ -288,12 +294,17 @@ class PollenWatchSensor(
         # (analytics.level_for_source — single source of truth for every
         # downstream consumer, replacing per-dashboard threshold tables).
         lvl = level_for_source(self._source_key, self._allergen, series)
+        # v2.2: evidence-tier for the bucketing — surfaced so a "high" on a
+        # borrowed family bracket is distinguishable from a "high" on
+        # species-specific cited evidence. Sourced from species_registry.
+        thr_status = CANONICAL_SPECIES[self._allergen].thresholds.value
         attrs: dict[str, Any] = {
             ATTR_FORECAST: _forecast_attr(
                 result.times, series.values, today, FORECAST_DAYS
             ),
             ATTR_LEVEL: lvl,
             ATTR_LEVEL_LABEL: _level_label(lvl),
+            ATTR_THRESHOLD_STATUS: thr_status,
             ATTR_REQUESTED_LAT: result.requested_lat,
             ATTR_REQUESTED_LON: result.requested_lon,
             ATTR_SNAPPED_LAT: result.snapped_lat,
@@ -430,6 +441,9 @@ class ConsensusSensor(
             ATTR_SOURCE_LEVELS: result.source_levels,
             ATTR_SOURCE_COUNT: result.source_count,
             ATTR_MAX_SOURCES: result.max_possible,
+            # v2.2: evidence-tier for the species's bucketing — invariant
+            # across sources; reads the same as on the raw sensor.
+            ATTR_THRESHOLD_STATUS: CANONICAL_SPECIES[self._species].thresholds.value,
         }
 
 

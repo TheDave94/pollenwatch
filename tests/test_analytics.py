@@ -20,18 +20,53 @@ from custom_components.pollenwatch.analytics import (
 @pytest.mark.parametrize(
     ("species", "grains", "expected"),
     [
+        # grass: still 3/50 — best-anchored EAACI bracket.
         ("grass", 0, 0),
         ("grass", 2.9, 0),
-        ("grass", 3, 1),  # exactly onset -> higher level
+        ("grass", 3, 1),
         ("grass", 49.9, 1),
-        ("grass", 50, 2),  # exactly peak -> higher level
+        ("grass", 50, 2),
         ("grass", 200, 2),
+        # v2.2 birch: refined 10→20 onset (Aerobiologia 2021); peak 100
+        # VALIDATED by Struß 2025 controlled chamber (doi:10.1159/000545509).
         ("birch", 9.9, 0),
-        ("birch", 10, 1),
+        ("birch", 19.9, 0),
+        ("birch", 20, 1),   # new onset
         ("birch", 99.9, 1),
-        ("birch", 100, 2),
-        ("ragweed", 3, 1),
+        ("birch", 100, 2),  # peak validated
+        # v2.2 alder: refined to per-species cited values 45/80
+        # (Rapiejko 2007 PMC6245103). Peak BELOW the Fagales family
+        # bracket — per-species evidence wins.
+        ("alder", 30, 0),
+        ("alder", 44.9, 0),
+        ("alder", 45, 1),   # new onset
+        ("alder", 79.9, 1),
+        ("alder", 80, 2),   # new peak (was 100)
+        # v2.2 hazel: refined to 35/80 (Rapiejko 2007 PMC4996891).
+        ("hazel", 34.9, 0),
+        ("hazel", 35, 1),   # new onset
+        ("hazel", 79.9, 1),
+        ("hazel", 80, 2),   # new peak (was 100)
+        # v2.2 olive: peak raised 100→200 (Spanish op scale PMC7349006;
+        # corrects regional over-warning).
         ("olive", 10, 1),
+        ("olive", 99, 1),   # was high under v2.1; now low
+        ("olive", 199, 1),
+        ("olive", 200, 2),  # new peak
+        # v2.2 ragweed: refined 3/50 → 5/20 (PMC5357339; PMC2868868).
+        # Watch UBAMBI (NCT05346718, ragweed arm unpublished as of mid-2026).
+        ("ragweed", 3, 0),  # was low under v2.1; now none
+        ("ragweed", 4.9, 0),
+        ("ragweed", 5, 1),  # new onset
+        ("ragweed", 19.9, 1),
+        ("ragweed", 20, 2), # new peak (was 50)
+        # v2.2 mugwort: HERB-class fix — moved from tree bracket (10, 100)
+        # to herb-class default (3, 50). No mugwort-specific cited cutoff;
+        # evidence graded *limited* (Aerobiologia 2021).
+        ("mugwort", 0, 0),
+        ("mugwort", 3, 1),  # new onset (was none under v2.1)
+        ("mugwort", 49.9, 1),
+        ("mugwort", 50, 2), # new peak (was 100)
         ("mugwort", 100, 2),
     ],
 )

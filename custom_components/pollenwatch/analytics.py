@@ -19,44 +19,157 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .sources.base import AllergenSeries
 
-# (onset, peak) grains/m³ per species — EAACI (Pfaar 2017/2020), as used by
-# Copernicus CAMS / Climate-ADAPT. See ANALYTICS.md for citations. alder and
-# mugwort are grouped by analogy (birch/olive), NOT independently sourced.
-# v2.0+ additions for the expanded 24-species set: species without exact-
-# species EAACI cutoffs borrow from the family analogue (tree group → birch
-# bracket; herb/grass group → Poaceae bracket). These are flagged as
-# `ThresholdStatus.PARTIAL` in `species_registry`; promoting them to exact
-# cutoffs is tracked in REVIEW_QUEUE.md.
+# (onset, peak) grains/m³ per species. Provenance is documented per row;
+# the evidence tier for each species lives in
+# ``sources/species_registry.CANONICAL_SPECIES[<key>].thresholds`` (a 5-value
+# ``ThresholdStatus`` enum: SPECIES_SPECIFIC / FAMILY_EAACI /
+# ESTABLISHED_NO_THRESHOLD / FAMILY_ANALOGY / FUNGAL). v2.2 reconciles this
+# table, the registry's enum, and the README to the approved literature review
+# in ``threshold-provenance-review-FINAL.md`` (issue #3) — see ANALYTICS.md
+# for the rigorous EAACI/Pfaar 2017 derivation of the 3-level scale itself.
+#
+# Boundary convention: a value equal to a threshold belongs to the higher
+# level (``>=``). Below ``onset`` → 0 (none); ``onset`` ≤ x < ``peak`` → 1
+# (low / in season); ``>= peak`` → 2 (high / at or above peak).
 _THRESHOLDS: dict[str, tuple[float, float]] = {
-    # v1.x exact EAACI cutoffs
-    "alder": (10, 100),
-    "birch": (10, 100),
-    "olive": (10, 100),
-    "mugwort": (10, 100),
-    "grass": (3, 50),
-    "ragweed": (3, 50),
-    # v2.0 trees — birch/olive bracket
-    "hazel": (10, 100),
+    # ---- Tier 2 (SPECIES_SPECIFIC): per-species published evidence ----
+    # birch: low ~20 per Aerobiologia syst. review 2021; peak 100 VALIDATED
+    # by Struß 2025 controlled chamber (doi:10.1159/000545509, PMID 40328230,
+    # sham-controlled titrate-to-effect, threshold 50–100 pollen/m³).
+    "birch": (20, 100),
+    # alder: 45 = first symptoms, 80 = all alder-allergics symptomatic,
+    # severe >95 (Rapiejko 2007 PMC6245103; Kraków PM10 study PMID 29693977).
+    # Cited peak below the EAACI tree family bracket (100) — per-species
+    # evidence wins.
+    "alder": (45, 80),
+    # hazel: operational low 0–35 / high >35; severe symptoms >80
+    # (Rapiejko 2007 PMC4996891; Kraków study). Same per-species-over-family
+    # reasoning as alder.
+    "hazel": (35, 80),
+    # ash: SPECIES_SPECIFIC label in the registry — 2021 Aerobiologia
+    # systematic review documents 18–28 grains/m³ ↑doctor visits (strongest
+    # single evidence in the 24-species set). Numeric refinement to ~18
+    # onset was OUT OF SCOPE for v2.2 (the approved 6-species change list
+    # was ragweed/olive/birch/alder/hazel/mugwort). Tracked for a future
+    # release: see the FINAL provenance review for the cited value.
     "ash": (10, 100),
-    "oak": (10, 100),
-    "holm_oak": (10, 100),
-    "beech": (10, 100),
-    "elm": (10, 100),
-    "carpinus": (10, 100),
+    # olive: regional Spanish operational scale low 1–50 / mod 51–200 /
+    # high >200 (PMC7349006); single-study cutoff 162 (Sciencedirect
+    # S1081120610010537); monosensitized cohort ~400 (PubMed 10394105).
+    # PW low (10) is inside the Spanish "low 1–50" range — uncited but
+    # consistent inherited bracket; the high (200) is the anchored number
+    # and corrects the v1 over-warning at 100.
+    "olive": (10, 200),
+    # plane_tree: symptom onset ~91 (Thermo t11); clinical onset ~130
+    # (ClinicAL BCN (130)); operational risk >50 / high >200 (EMJ Évora).
+    # Existing (10, 100) bracket fits the operational range; cited Tier 2
+    # but no single anchor strong enough to override.
     "plane_tree": (10, 100),
-    "cypress_family": (10, 100),
-    "juglans": (10, 100),
-    # v2.0 grasses + herbs — Poaceae/Ambrosia bracket
-    "rye": (3, 50),
+    # mugwort: HERB class (was previously at the tree bracket — class-error
+    # fix). No mugwort-specific published cutoff exists; evidence graded
+    # *limited* per the 2021 Aerobiologia systematic review. Rapiejko 2007
+    # documents mugwort-specific symptom data ("intensive symptoms") but
+    # does not yield a point cutoff — hence the bracket is the herb-class
+    # default (3, 50), not a mugwort-derived number. The
+    # SPECIES_SPECIFIC label in the registry reflects the existence of
+    # taxon-specific evidence, not the existence of a cited cutoff.
+    "mugwort": (3, 50),
+    # ragweed: best published evidence — clinical threshold <20, sensitive
+    # patients 1–5, children 40 for 50% symptomatic, 4-severity-level
+    # Milan model (PMC5357339; PMC2868868; Nature s41598-022-20069-y).
+    # NB: the Fraunhofer UBAMBI controlled-chamber trial (NCT05346718)
+    # completed Dec 2024 — birch arm published May 2025; ragweed arm
+    # remains UNPUBLISHED as of mid-2026. Revisit if/when it appears;
+    # do not imply imminent supersession.
+    "ragweed": (5, 20),
+    # grass: all sensitized symptomatic ~50; 25% at 20; dyspnoea >120
+    # (Rapiejko 2007; Davies & Smith 1973; EAACI Pfaar 2017 ≥50 is
+    # grass-anchored; PMC3699361 30/80). The (3, 50) bracket is the
+    # best-anchored in the table — EAACI ≥50 is grass-derived. Hold.
+    "grass": (3, 50),
+    # plantago: bracket is the herb-class default. Rapiejko 2007
+    # (PMID 18260258) finds SPT-positive patients had "low intensity or
+    # even no symptoms" during pollination — cited weak-allergen evidence
+    # rather than a numeric cutoff.
     "plantago": (3, 50),
+    # urtica / nettle_family: same Rapiejko 2007 weak-allergen finding —
+    # SPT-positive → low/no symptoms. NOTE: Parietaria (a sibling
+    # Urticaceae) IS clinically potent; not separately tracked here, but
+    # users in Mediterranean regions should be aware.
     "urtica": (3, 50),
     "nettle_family": (3, 50),
+    # carpinus: weak Tier 2 — 12.5% of Betulaceae-allergics
+    # hornbeam-*only*; Croatia asthma admissions +21% at high hornbeam;
+    # birch-confounded, no isolated numeric cutoff (Gumowski et al.,
+    # Aerobiologia, doi:10.1023/A:1007600313862). Bracket inherited from
+    # the Fagales family.
+    "carpinus": (10, 100),
+    # ---- Tier 1-legitimate (FAMILY_EAACI): EAACI family cutoffs ----
+    # rye: no rye-specific cutoff, but rye is Poaceae → EAACI grass ≥50.
+    "rye": (3, 50),
+    # oak: clinical relevance contested (Madrid: high counts but negative
+    # nasal challenge, JACI S0091-6749(15)02270-8) but recent Fagales work
+    # argues Bet v 1-homolog sensitizing activity is *underestimated*
+    # (Que i 1 paper 2020); Canadian +2.3% asthma-hospitalization signal
+    # (Thermo t7). EAACI Fagales ≥100 holds.
+    "oak": (10, 100),
+    # holm_oak (Q. ilex): 1995 "does not cause allergies" null is
+    # SUPERSEDED — recent study finds 59.8% of pollen-allergic children
+    # sensitized, "significant increase since 1995"; Que i 1 (Bet v 1
+    # homolog) now characterised. Still no grains/m³ threshold; EAACI
+    # Fagales ≥100 carried.
+    "holm_oak": (10, 100),
+    # beech: no threshold study; minor aerobiological contributor
+    # (0.9–2% of tree pollen, Biedermann 2019 doi:10.1111/all.13758);
+    # birch-homologous cross-reactant. EAACI Fagales ≥100.
+    "beech": (10, 100),
+    # cypress_family: clinically major Mediterranean winter allergen
+    # (Cup s 1 / Cup a 1), genuine primary monosensitization (Charpin 2005
+    # doi:10.1111/j.1398-9995.2005.00731.x); reported as peaks/prevalence,
+    # no isolated symptom-onset grains/m³ threshold. EAACI Cupressaceae
+    # ≥100 holds.
+    "cypress_family": (10, 100),
+    # ---- Tier 1-legitimate (ESTABLISHED_NO_THRESHOLD): characterised allergen,
+    #      no number, working bracket carried ----
+    # chenopodium: established allergen (Che a 1/2/3) with 8–10%
+    # SPT-positivity in arid regions (PubMed 2817534 Córdoba 8.4%;
+    # Thermo w10 Iran 9.6%; JACI S0091-6749(04)00807-3 allergens). No
+    # threshold study; allergenicity contested across authors. Working
+    # bracket — herb-class default.
     "chenopodium": (3, 50),
+    # juglans (walnut): pollen moderately allergenic; sibling pecan
+    # symptom onset 10–20 grains/m³ (Thermo t22). NB: most "walnut
+    # allergy" literature = the NUT/food, irrelevant to pollen — do not
+    # cite food studies for pollen thresholds.
+    "juglans": (10, 100),
+    # elm (Ulmus): established allergen (US 24.6% / Buenos Aires 37.4%
+    # SPT-positive; Canadian +2.63% asthma hospitalizations per IQR Ulmus
+    # increase) but NO published Ulmus-specific grains/m³ threshold, and
+    # Ulmaceae is NOT in EAACI's family scheme. The (10, 100) bracket is
+    # an uncited working value — defensible only as a working bucket.
+    "elm": (10, 100),
+    # ---- Tier 1-borrowed (FAMILY_ANALOGY): bracket from aerobiological analogy ----
+    # rumex (dock/sorrel): secondary allergen, nasal-challenge-confirmed
+    # responders exist (17–19% SPT-positive in some cohorts); no
+    # threshold; grass-season confounded; partial ragweed cross-reactivity;
+    # no IUIS allergens. Herb-class default.
     "rumex": (3, 50),
+    # asteraceae (other) — the residual after mugwort and ragweed are
+    # extracted. Catch-all; clinical weight carried by the separately
+    # tracked Asteraceae species. Genuinely the weakest provenance row in
+    # the table — herb-class default by analogy alone.
     "asteraceae": (3, 50),
-    # Note: alternaria (spore) is reported by PI as a 0-4 index — collapse_index
-    # path, never grains/m³ — so it never reaches bucket_level. No threshold
-    # entry needed; intentionally omitted.
+    # ---- Tier 3 (FUNGAL): alternaria ----
+    # alternaria is NOT in this table — it routes via the PI 0–4 index
+    # (``collapse_index``) path, never ``bucket_level``. The FINAL
+    # provenance review notes alternaria has the best-cited threshold in
+    # the entire 24-species set: ~80–100 spores/m³ first symptoms
+    # (Rapiejko 2007; Ricci 1995; PMC4473279 European multi-city); modern
+    # refinement Alt a 1 ~20.7 pg/m³ (Thermo m229). The number is NOT
+    # wired here because no current source emits alternaria as spores/m³
+    # — adding an entry would be dead code that falsely implies the
+    # bucketing path uses it. If a future source ever emits spores/m³ for
+    # alternaria, wire ~80 onset / ~100 peak (cited) at that time.
 }
 
 # polleninformation 0–4 index -> 3-level scale (operational alignment).
