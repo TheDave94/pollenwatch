@@ -298,10 +298,13 @@ def wait_for_coordinator_refresh(client: HAClient, timeout: int = 180) -> None:
         else:
             stable_polls = 0
         prev_count = current_count
-        # All states have at least a `state` key; we want != "unknown" (or
-        # "unavailable", which means the coordinator ran but the source had no
-        # data — that's a legitimate refresh-complete state).
-        unready = [s for s in pw_states if s.get("state") in (None, "unknown")]
+        # "unready" = state is None (coordinator has not run for this
+        # entity yet). "unknown" is NOT unready: for recent_percentile
+        # sensors on a fresh install with no recorder history, "unknown"
+        # is the legitimate populated state. This matches Gate C's
+        # semantics in verify.py, which only flags state=None entities
+        # as a problem.
+        unready = [s for s in pw_states if s.get("state") is None]
         if len(unready) != last_unready:
             log(
                 f"    {current_count - len(unready)}/{current_count} ready "
