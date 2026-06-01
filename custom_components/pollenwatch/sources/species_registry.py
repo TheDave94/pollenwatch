@@ -80,6 +80,25 @@ class ThresholdStatus(StrEnum):
     FUNGAL = "fungal"
 
 
+#: Coarse provenance grouping derived from :class:`ThresholdStatus`, used by
+#: card UIs to drive a binary "is this threshold provenance worth flagging?"
+#: glance treatment. The mapping collapses the 5 source tiers into 3 derived
+#: values; the rule lives here so neither the PollenWatch card nor any
+#: downstream consumer (e.g. oriel-dashboard) hardcodes its own copy.
+#:
+#: ``FUNGAL`` collapses to ``"species"`` deliberately — alternaria carries
+#: the best-cited threshold in the 24-species set (Rapiejko / Ricci /
+#: PMC4473279, ~80–100 spores/m³), so provenance-wise it belongs unmarked
+#: even though its measurement basis differs from pollen.
+THRESHOLD_BASIS_FROM_STATUS: Final[dict[ThresholdStatus, str]] = {
+    ThresholdStatus.SPECIES_SPECIFIC: "species",
+    ThresholdStatus.FUNGAL: "species",
+    ThresholdStatus.FAMILY_EAACI: "family",
+    ThresholdStatus.ESTABLISHED_NO_THRESHOLD: "estimated",
+    ThresholdStatus.FAMILY_ANALOGY: "estimated",
+}
+
+
 # Source keys — literal strings mirrored from const.SOURCE_*. Kept inline
 # here to keep this module import-free of const (which depends on this
 # module via const.ALLERGEN_NAMES derivation in Phase B+).
@@ -298,3 +317,10 @@ assert set(CANONICAL_V1_SPECIES) <= ALL_SPECIES_KEYS, (
     "CANONICAL_V1_SPECIES contains keys not in CANONICAL_SPECIES — "
     "migration would orphan data"
 )
+
+
+def threshold_basis_for(species_key: str) -> str:
+    """Coarse provenance grouping for a species, derived from its
+    :class:`ThresholdStatus`. Returns one of ``"species"`` / ``"family"`` /
+    ``"estimated"`` per :data:`THRESHOLD_BASIS_FROM_STATUS`."""
+    return THRESHOLD_BASIS_FROM_STATUS[CANONICAL_SPECIES[species_key].thresholds]

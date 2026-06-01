@@ -38,7 +38,9 @@ from custom_components.pollenwatch.const import (
 from custom_components.pollenwatch.sources.open_meteo import OpenMeteoSource
 from custom_components.pollenwatch.sources.species_registry import (
     CANONICAL_SPECIES,
+    THRESHOLD_BASIS_FROM_STATUS,
     ThresholdStatus,
+    threshold_basis_for,
 )
 
 # Approved tier assignments per threshold-provenance-review-FINAL.md
@@ -122,6 +124,47 @@ def test_tier_counts_match_review():
         ThresholdStatus.FUNGAL: 1,
     }
     assert actual_counts == expected
+
+
+# ---------------------------------------------------------------------------
+# Layer 1b: threshold_basis derived mapping (5 source tiers -> 3 derived
+# values). Drives the binary "marked / unmarked" glance treatment in card
+# UIs (PollenWatch's bundled card + oriel-dashboard, both consuming the
+# same attribute — single source of truth lives here).
+# ---------------------------------------------------------------------------
+
+def test_threshold_basis_mapping_covers_every_tier():
+    """Every ThresholdStatus value must have a derived-basis assignment —
+    no source tier silently routes to None / KeyError at runtime."""
+    assert set(THRESHOLD_BASIS_FROM_STATUS.keys()) == set(ThresholdStatus)
+
+
+def test_threshold_basis_value_set_is_exactly_three():
+    """The derived basis collapses 5 source tiers into exactly 3 values.
+    Drift here means a card-side branch unexpectedly stops matching."""
+    assert set(THRESHOLD_BASIS_FROM_STATUS.values()) == {
+        "species", "family", "estimated",
+    }
+
+
+def test_basis_counts_per_value():
+    """13 SPECIES_SPECIFIC + 1 FUNGAL -> 14 "species"; 5 FAMILY_EAACI ->
+    5 "family"; 3 ESTABLISHED_NO_THRESHOLD + 2 FAMILY_ANALOGY -> 5
+    "estimated"."""
+    actual: dict[str, int] = {}
+    for info in CANONICAL_SPECIES.values():
+        basis = THRESHOLD_BASIS_FROM_STATUS[info.thresholds]
+        actual[basis] = actual.get(basis, 0) + 1
+    assert actual == {"species": 14, "family": 5, "estimated": 5}
+
+
+@pytest.mark.parametrize("species", sorted(CANONICAL_SPECIES.keys()))
+def test_threshold_basis_for_helper_matches_mapping(species: str) -> None:
+    """``threshold_basis_for(sp)`` must equal the mapping lookup — catches
+    any future re-implementation that hardcodes the 5->3 rule somewhere
+    else and drifts from the registry constant."""
+    expected = THRESHOLD_BASIS_FROM_STATUS[CANONICAL_SPECIES[species].thresholds]
+    assert threshold_basis_for(species) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -235,4 +278,73 @@ async def test_consensus_sensor_exposes_threshold_status_invariant_with_raw(
         assert raw_ts == cons_ts == registry_ts, (
             f"{species}: raw={raw_ts!r}, consensus={cons_ts!r}, "
             f"registry={registry_ts!r} — should all be identical"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Layer 2b + 3b: threshold_basis wiring on raw + consensus sensors.
+#
+# Both species exercised here (birch + mugwort) carry SPECIES_SPECIFIC ->
+# "species" — Open-Meteo's 6-species coverage doesn't include any
+# non-SPECIES_SPECIFIC species, so the runtime path here only proves the
+# "species" branch end-to-end. Mapping correctness for "family" and
+# "estimated" is asserted at Layer 1b via the per-species parametrize,
+# and the function-keyed wiring at sensor.py (threshold_basis_for(species))
+# makes those branches correct by transitivity.
+# ---------------------------------------------------------------------------
+
+async def test_raw_sensor_exposes_threshold_basis_from_registry(
+    hass: HomeAssistant,
+) -> None:
+    """The raw sensor's ``threshold_basis`` attribute equals
+    ``threshold_basis_for(species)`` — same function-keyed contract as the
+    threshold_status wiring test."""
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        assert entry.state is ConfigEntryState.LOADED
+
+    for species in ("birch", "mugwort"):
+        state = hass.states.get(f"sensor.pollenwatch_open_meteo_{species}")
+        assert state is not None, f"no entity for {species}"
+        expected = threshold_basis_for(species)
+        actual = state.attributes.get("threshold_basis")
+        assert actual == expected, (
+            f"{species}: entity threshold_basis={actual!r} "
+            f"!= helper {expected!r}"
+        )
+
+
+async def test_consensus_sensor_exposes_threshold_basis_invariant_with_raw(
+    hass: HomeAssistant,
+) -> None:
+    """Cross-source invariant: the consensus sensor reports the same
+    ``threshold_basis`` as the raw sensor for the same species."""
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    with (
+        patch(_SESSION, return_value=object()),
+        patch(_FETCH, new=AsyncMock(return_value=_result())),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        assert entry.state is ConfigEntryState.LOADED
+
+    for species in ("birch", "mugwort"):
+        raw = hass.states.get(f"sensor.pollenwatch_open_meteo_{species}")
+        consensus = hass.states.get(f"sensor.pollenwatch_analytics_{species}_consensus")
+        assert raw is not None and consensus is not None
+        raw_basis = raw.attributes.get("threshold_basis")
+        cons_basis = consensus.attributes.get("threshold_basis")
+        helper_basis = threshold_basis_for(species)
+        assert raw_basis == cons_basis == helper_basis, (
+            f"{species}: raw={raw_basis!r}, consensus={cons_basis!r}, "
+            f"helper={helper_basis!r} — should all be identical"
         )
