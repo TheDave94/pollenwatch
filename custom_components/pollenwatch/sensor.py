@@ -59,7 +59,7 @@ from .coordinator import (
     all_covered_species,
     analytics_device_info,
 )
-from .sources.species_registry import CANONICAL_SPECIES
+from .sources.species_registry import CANONICAL_SPECIES, threshold_basis_for
 
 # Coordinator-driven entities with no per-entity writes — HA serialization
 # is unnecessary; declare parallel updates to keep the silver rule explicit.
@@ -84,6 +84,9 @@ ATTR_SOURCE_LEVELS = "source_levels"
 # sensors so downstream consumers can mark "this 'high' is on a borrowed
 # family bracket" without consulting a second data source.
 ATTR_THRESHOLD_STATUS = "threshold_status"
+# Coarse 3-value provenance grouping derived from threshold_status, for
+# binary glance-treatment in card UIs (see THRESHOLD_BASIS_FROM_STATUS).
+ATTR_THRESHOLD_BASIS = "threshold_basis"
 
 
 def _source_device_info(entry: PollenWatchConfigEntry, source_key: str) -> DeviceInfo:
@@ -305,6 +308,7 @@ class PollenWatchSensor(
             ATTR_LEVEL: lvl,
             ATTR_LEVEL_LABEL: _level_label(lvl),
             ATTR_THRESHOLD_STATUS: thr_status,
+            ATTR_THRESHOLD_BASIS: threshold_basis_for(self._allergen),
             ATTR_REQUESTED_LAT: result.requested_lat,
             ATTR_REQUESTED_LON: result.requested_lon,
             ATTR_SNAPPED_LAT: result.snapped_lat,
@@ -444,6 +448,7 @@ class ConsensusSensor(
             # v2.2: evidence-tier for the species's bucketing — invariant
             # across sources; reads the same as on the raw sensor.
             ATTR_THRESHOLD_STATUS: CANONICAL_SPECIES[self._species].thresholds.value,
+            ATTR_THRESHOLD_BASIS: threshold_basis_for(self._species),
         }
 
 
