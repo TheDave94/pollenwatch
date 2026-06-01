@@ -13,12 +13,13 @@
  * show_mixed_span?: false, expanded_default?: false }.
  */
 (() => {
-  const CARD_VERSION = '0.5.0';  // v2.4 — `bars` + `compact` multi-species overview layouts
+  const CARD_VERSION = '0.6.0';  // v2.4 — bars + compact + tiles multi-species overview layouts
 
   // Resolved layout. 'gauge' is the pre-v2.4 single-species view, unchanged.
-  // 'bars' is the Stage-2 multi-species overview. 'compact' and 'tiles' are
-  // Stage-3/4 placeholders — until those ship, picking them falls back to
-  // 'gauge' with a console.warn so a config doesn't break.
+  // 'bars', 'compact', and 'tiles' are the v2.4 multi-species overview
+  // layouts (Stages 2/3/4 of docs/MULTISPECIES_CARD_PLAN.md). Every member
+  // of ALLOWED_LAYOUTS has a dedicated handler — there is no placeholder
+  // fallthrough anymore.
   const LAYOUT_GAUGE = 'gauge';
   const LAYOUT_BARS = 'bars';
   const LAYOUT_COMPACT = 'compact';
@@ -622,6 +623,150 @@
     .compact-row.state-mixed .compact-level-word { color: var(--primary-text-color, #2A3540); }
     /* unknown/nodata: secondary-text (default) — no override needed. */
 
+    /* === Tiles overview layout (v2.4+) ===========================
+       Per-species tile: severity-tinted icon + species name + level
+       word, in a grid of clickable cards. Denser than bars (visual,
+       parallel scan) and more visual than compact (icon-bearing).
+
+       DELIBERATE OVERLAP — this layout knowingly resembles
+       oriel-dashboard's consensus_tiles. Intentional, per
+       docs/MULTISPECIES_CARD_PLAN.md: standalone completeness for
+       the HACS user without oriel. Zero shared code (vanilla JS
+       here, TS/Lit in oriel) — parity by design, not duplication.
+       Don't "fix" this.
+
+       Severity routing (Option 2, consistent with bars+compact):
+         - Tile background stays NEUTRAL so the icon reads clearly.
+         - Severity rides a 4px left-edge accent stripe (single-source
+           palette: same SEG_COLORS / bars-fill / compact-dot tokens),
+           the icon's --pw-grain-fill tint (same pastel palette as the
+           gauge's .card.state-* rules), and the level-word colour.
+         - Mixed = hatched accent stripe, 45° in the same neutral
+           token pair as bars (#secondary-text x #divider), 4px period
+           (matches bars' track-fill stripe — same surface scale, same
+           hatch reading). Rhymes with bars+compact's "stripes =
+           sources disagree" word.
+         - Unknown/nodata = faint gray stripe + neutral icon tint,
+           never green (v2.3.0 honesty rule). */
+    .tiles-empty {
+      padding: 16px;
+      color: var(--secondary-text-color, #7C8794);
+      font-size: 13px;
+      text-align: center;
+    }
+    .tiles-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+    }
+    .tile {
+      position: relative;
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      grid-template-areas:
+        "icon name"
+        "icon level";
+      align-items: center;
+      gap: 2px 10px;
+      padding: 10px 12px 10px 14px;
+      min-height: 56px;
+      border: 1px solid var(--divider-color, #ECE4D6);
+      border-radius: 10px;
+      background: var(--ha-card-background, var(--card-background-color, white));
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .tile:hover, .tile:focus-visible {
+      outline: none;
+      border-color: var(--secondary-text-color, #7C8794);
+      background: var(--secondary-background-color, rgba(0,0,0,0.03));
+    }
+    /* Accent stripe — runs full tile height at the left edge.
+       Default token is the neutral disabled-color (a tile with no
+       resolved state class is treated as nodata-equivalent). */
+    .tile::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--disabled-color, #AEB7C0);
+    }
+    .tile .species-icon {
+      grid-area: icon;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      --pw-grain-stroke: var(--primary-text-color, #2A3540);
+      --pw-grain-fill: var(--divider-color, #E8EBEE);
+    }
+    .tile .species-icon svg { width: 100%; height: 100%; }
+    .tile-name {
+      grid-area: name;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-transform: capitalize;
+    }
+    .tile-level {
+      grid-area: level;
+      font-size: 12px;
+      color: var(--secondary-text-color, #7C8794);
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    /* Severity tints — single source of truth for the severity scale.
+       Stripe colour = SEG_COLORS (same as bars-fill + compact-dot).
+       Icon fill = same pastel palette as gauge's .card.state-* rules. */
+    .tile.state-none::before { background: #3DAE5A; }
+    .tile.state-low::before  { background: #F2A516; }
+    .tile.state-high::before { background: #E0492E; }
+    .tile.state-none  .species-icon { --pw-grain-fill: #C8E6CF; }
+    .tile.state-low   .species-icon { --pw-grain-fill: #FCE5B8; }
+    .tile.state-high  .species-icon { --pw-grain-fill: #F4C6BA; }
+    /* Mixed: hatched accent stripe in neutral token pair. Same 45° as
+       bars+compact, 4px period (matches bars exactly — accent stripe
+       and bars' track-fill are the same "thin coloured band" surface
+       so the hatch reads the same way). */
+    .tile.state-mixed::before {
+      background: repeating-linear-gradient(
+        45deg,
+        var(--secondary-text-color, #7C8794) 0 2px,
+        var(--divider-color, #ECE4D6) 2px 4px
+      );
+      opacity: 0.9;
+    }
+    .tile.state-mixed .species-icon {
+      --pw-grain-fill: var(--divider-color, #ECE4D6);
+    }
+    /* Unknown / nodata: faint gray stripe, never green. Honesty rule. */
+    .tile.state-unknown::before,
+    .tile.state-nodata::before {
+      background: var(--disabled-color, #AEB7C0);
+      opacity: 0.6;
+    }
+    .tile.state-unknown .species-icon,
+    .tile.state-nodata  .species-icon {
+      --pw-grain-fill: var(--divider-color, #ECE4D6);
+      opacity: 0.7;
+    }
+    /* Level-word colour — mirrors bars + compact + gauge reading-label. */
+    .tile.state-none  .tile-level-word { color: #3DAE5A; }
+    .tile.state-low   .tile-level-word { color: #F2A516; }
+    .tile.state-high  .tile-level-word { color: #E0492E; }
+    .tile.state-mixed .tile-level-word { color: var(--primary-text-color, #2A3540); }
+    /* unknown/nodata: secondary-text (default) — no override needed. */
+
     @media (prefers-reduced-motion: reduce) {
       .bar-fill { transition: none !important; }
     }
@@ -694,8 +839,7 @@
       // may omit `species` (discovery fills it in) but accept it as a
       // curated override.
       const isOverviewYaml = OVERVIEW_LAYOUTS.has(yamlLayout);
-      if (!isOverviewYaml && yamlLayout !== LAYOUT_BARS && yamlLayout !== LAYOUT_COMPACT &&
-          yamlLayout !== LAYOUT_TILES && !config.species) {
+      if (!isOverviewYaml && !config.species) {
         // Gauge layout (default OR explicit) requires species.
         throw new Error(
           'pollenwatch-card: species is required for layout: gauge ' +
@@ -835,9 +979,10 @@
     }
 
     _build() {
-      // Layout dispatch. tiles falls through to gauge for now — Stage-4
-      // placeholder. A console.warn surfaces the user's chosen-but-
-      // unimplemented layout so it's not silent drift.
+      // Layout dispatch. Every ALLOWED_LAYOUT has its own handler now;
+      // the trailing _buildGauge() is a belt-and-braces default for an
+      // unrecognised layout string slipping past setConfig + _resolveLayout
+      // (both of which gate on ALLOWED_LAYOUTS).
       const layout = this._resolvedLayout;
       if (layout === LAYOUT_BARS) {
         this._buildBars();
@@ -848,12 +993,8 @@
         return;
       }
       if (layout === LAYOUT_TILES) {
-        /* eslint-disable no-console */
-        console.warn(
-          `pollenwatch-card: layout: ${layout} is reserved for a future ` +
-          `stage; falling back to 'gauge'. Set layout: bars or compact ` +
-          `for the multi-species layouts currently shipped.`
-        );
+        this._buildTiles();
+        return;
       }
       this._buildGauge();
     }
@@ -905,6 +1046,10 @@
       }
       if (this._resolvedLayout === LAYOUT_COMPACT) {
         this._renderCompact();
+        return;
+      }
+      if (this._resolvedLayout === LAYOUT_TILES) {
+        this._renderTiles();
         return;
       }
       this._renderGauge();
@@ -1171,6 +1316,100 @@
           <span class="compact-name">${cap(species)}</span>
           <span class="compact-level">
             <span class="compact-level-word">${levelWord}</span>
+            ${markerHtml}
+          </span>
+        </button>
+      `;
+    }
+
+    // ── Tiles layout ───────────────────────────────────────────────
+    // Mirrors _buildBars / _buildCompact structurally — grid built
+    // once, tiles re-rendered on each state push, single delegated
+    // click + keydown. Tiles bear icons (the gauge's loadIcon path);
+    // discovery, filtering, state resolution, provenance markers,
+    // and more-info delegation are all reused unchanged.
+    //
+    // DELIBERATE OVERLAP — see the .tiles-grid CSS comment for why
+    // this layout intentionally rhymes with oriel-dashboard's
+    // consensus_tiles. Zero shared code; parity by design.
+    _buildTiles() {
+      this.shadowRoot.innerHTML = `
+        <style>${CARD_CSS}</style>
+        <ha-card class="card">
+          ${this._config.title ? `<div class="header"><div class="title">${this._config.title}</div></div>` : ''}
+          <div class="tiles-grid" data-tiles></div>
+        </ha-card>
+      `;
+      const grid = this.shadowRoot.querySelector('[data-tiles]');
+      grid.addEventListener('click', (e) => {
+        const tile = e.target.closest('.tile[data-entity]');
+        if (!tile) return;
+        this._fireMoreInfo(tile.getAttribute('data-entity'));
+      });
+      grid.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const tile = e.target.closest('.tile[data-entity]');
+        if (!tile) return;
+        e.preventDefault();
+        this._fireMoreInfo(tile.getAttribute('data-entity'));
+      });
+    }
+
+    _renderTiles() {
+      const grid = this.shadowRoot.querySelector('[data-tiles]');
+      if (!grid) return;
+      const species = this._resolveSpecies();
+      if (species.length === 0) {
+        grid.innerHTML = `<div class="tiles-empty">No PollenWatch species found yet.</div>`;
+        return;
+      }
+      const rows = species.map((s) => {
+        const { state } = resolveState(this._hass, s);
+        const consensusId = `sensor.pollenwatch_analytics_${s}_consensus`;
+        const consensus = this._hass.states[consensusId];
+        const basis = consensus?.attributes?.threshold_basis;
+        return { species: s, state, consensusId, basis };
+      });
+      // Same show_inactive rule as bars + compact: hide ONLY level=none
+      // tiles; unknown/nodata still render (no-data is information).
+      const visible = this._config.show_inactive
+        ? rows
+        : rows.filter((r) => r.state !== 'none');
+      if (visible.length === 0) {
+        grid.innerHTML = `<div class="tiles-empty">All clear — no active pollen today.</div>`;
+        return;
+      }
+      grid.innerHTML = visible.map((r) => this._renderTile(r)).join('');
+      // Tiles bear icons. Inline each one async, reusing the gauge's
+      // module-scoped ICON_CACHE — one fetch per species across the
+      // whole page, regardless of how many cards exist.
+      visible.forEach((r) => {
+        const holder = grid.querySelector(`[data-tile-icon="${r.species}"]`);
+        if (!holder) return;
+        loadIcon(r.species).then((svg) => {
+          if (svg && holder) holder.innerHTML = svg;
+        });
+      });
+    }
+
+    _renderTile({ species, state, consensusId, basis }) {
+      const levelWord = BARS_LEVEL_LABEL[state] || state;
+      const marker = provenanceMarker(basis);
+      const markerHtml = marker
+        ? `<span class="provenance-marker" role="img" tabindex="0" ` +
+          `title="${this._escAttr(marker.tooltip)}" ` +
+          `aria-label="${this._escAttr(marker.ariaLabel)}">` +
+          `<span class="sr-only">${this._escText(marker.ariaLabel)}</span>` +
+          `</span>`
+        : '';
+      return `
+        <button class="tile state-${state}" data-entity="${consensusId}"
+                role="button" tabindex="0"
+                aria-label="${this._escAttr(cap(species))}: ${this._escAttr(levelWord)}">
+          <span class="species-icon" data-tile-icon="${this._escAttr(species)}" aria-hidden="true"></span>
+          <span class="tile-name">${cap(species)}</span>
+          <span class="tile-level">
+            <span class="tile-level-word">${levelWord}</span>
             ${markerHtml}
           </span>
         </button>
