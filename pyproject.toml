@@ -1,6 +1,6 @@
 [project]
 name = "pollenwatch"
-version = "2.2.1"
+version = "2.3.0"
 description = "Multi-source European pollen aggregator for Home Assistant"
 readme = "README.md"
 license = { file = "LICENSE" }
