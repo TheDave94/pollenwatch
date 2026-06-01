@@ -13,7 +13,20 @@
  * show_mixed_span?: false, expanded_default?: false }.
  */
 (() => {
-  const CARD_VERSION = '0.3.0';  // v2.3 — threshold provenance marker
+  const CARD_VERSION = '0.4.0';  // v2.4 — `bars` multi-species overview layout
+
+  // Resolved layout. 'gauge' is the pre-v2.4 single-species view, unchanged.
+  // 'bars' is the Stage-2 multi-species overview. 'compact' and 'tiles' are
+  // Stage-3/4 placeholders — until those ship, picking them falls back to
+  // 'gauge' with a console.warn so a config doesn't break.
+  const LAYOUT_GAUGE = 'gauge';
+  const LAYOUT_BARS = 'bars';
+  const LAYOUT_COMPACT = 'compact';
+  const LAYOUT_TILES = 'tiles';
+  const ALLOWED_LAYOUTS = new Set([
+    LAYOUT_GAUGE, LAYOUT_BARS, LAYOUT_COMPACT, LAYOUT_TILES,
+  ]);
+  const OVERVIEW_LAYOUTS = new Set([LAYOUT_BARS, LAYOUT_COMPACT, LAYOUT_TILES]);
 
   // Icon URL pattern. Icons live in custom_components/pollenwatch/frontend/
   // icons/{canonical_key}.svg and are served via the integration's static
@@ -409,7 +422,157 @@
     @media (prefers-reduced-motion: reduce) {
       .pwgauge *, .reading-label { transition: none !important; }
     }
+
+    /* === Bars overview layout (v2.4+) ============================
+       Two-column auto-grid of rows. Each row: species name on the
+       left, severity-filled track in the middle, level word + tiny
+       provenance dot on the right. Track LENGTH double-codes the
+       same tier the COLOUR encodes; mixed is hatched-neutral (no
+       length claim) and unknown/nodata are a faint gray stub
+       (gray-never-green for empty, the v2.3.0 honesty rule).
+       Rows are clickable -> hass-more-info on the consensus
+       entity, same delegation as the gauge's per-source breakdown. */
+    .bars-empty {
+      padding: 16px;
+      color: var(--secondary-text-color, #7C8794);
+      font-size: 13px;
+      text-align: center;
+    }
+    .bars-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 4px 12px;
+    }
+    .bar-row {
+      display: grid;
+      grid-template-columns: minmax(72px, 30%) 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 6px;
+      min-height: 26px;
+      border-radius: 6px;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      width: 100%;
+    }
+    .bar-row:hover, .bar-row:focus-visible {
+      background: var(--secondary-background-color, rgba(0,0,0,0.04));
+      outline: none;
+    }
+    .bar-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-transform: capitalize;
+    }
+    .bar-track {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--divider-color, #ECE4D6);
+      overflow: hidden;
+    }
+    .bar-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      background: var(--disabled-color, #AEB7C0);
+      border-radius: 999px;
+      transition: width 240ms cubic-bezier(.32,.72,.30,1),
+                  background-color 200ms;
+    }
+    /* Mixed: hatched stripe in neutral muted token. Rhymes with the
+       gauge's mixed-mark (3 gray dots + hollow hub) — neutral colour,
+       no magnitude claim. Track fully filled so the stripe is visible. */
+    .bar-row.state-mixed .bar-fill {
+      width: 100%;
+      background: repeating-linear-gradient(
+        45deg,
+        var(--secondary-text-color, #7C8794) 0 4px,
+        var(--divider-color, #ECE4D6) 4px 8px
+      );
+      opacity: 0.85;
+    }
+    /* Unknown / nodata: faint gray stub (5%), never green. Honest
+       absence — the gauge's dashed/faint arc analogue. */
+    .bar-row.state-unknown .bar-fill,
+    .bar-row.state-nodata .bar-fill {
+      width: 5%;
+      background: var(--disabled-color, #AEB7C0);
+      opacity: 0.6;
+    }
+    /* Visible-but-empty 'none' row: no fill width, but the row still
+       reads as "actively zero" via the green level word. show_inactive
+       gates whether this row renders at all; when it does, it stays
+       visually present without a coloured bar. */
+    .bar-row.state-none .bar-fill { width: 0%; }
+    .bar-level {
+      font-size: 12px;
+      color: var(--secondary-text-color, #7C8794);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    /* Level-word colour echoes the gauge's reading-label rule. */
+    .bar-row.state-none  .bar-level-word { color: #3DAE5A; }
+    .bar-row.state-low   .bar-level-word { color: #F2A516; }
+    .bar-row.state-high  .bar-level-word { color: #E0492E; }
+    .bar-row.state-mixed .bar-level-word { color: var(--primary-text-color, #2A3540); }
+    /* unknown/nodata: secondary-text (default) — no override needed. */
+
+    @media (prefers-reduced-motion: reduce) {
+      .bar-fill { transition: none !important; }
+    }
   `;
+
+  // ── Bars layout (v2.4+) ──────────────────────────────────────────
+  // Multi-species overview: one row per species — species name + filled
+  // severity track + level word + provenance marker (reused from v2.3).
+  //
+  // Fill is severity-tier-fill, NOT a measurement (the consensus is a
+  // 4-state enum). The bar is DOUBLE-CODED: both length and colour
+  // signal the same tier, so the bar is a sort-cue plus colour redundancy,
+  // never a false-precision magnitude claim. Mixed gets a hatched stripe
+  // in a neutral token — rhymes with the gauge's mixed-mark (3 gray
+  // dots, hollow hub) by being neutral and length-less.
+  //
+  // Discovery + render order: explicit YAML species[] > WS-discovered
+  // CONF_SELECTED_SPECIES > hass.states scan. show_inactive (default
+  // false) hides species at none — unknown/nodata still render because
+  // no-data is information, not absence (matches gauge's gray-never-green
+  // for empty rule).
+  const BARS_FILL_PCT = {
+    // Severity tier → bar fill percentage. Fixed steps. The exact numbers
+    // are chosen for visual differentiation, not numeric correctness — see
+    // the comment above; this is presentational only.
+    none: 0,
+    low: 34,
+    high: 100,
+  };
+  // Same severity palette the gauge uses (SEG_COLORS). Keeping it
+  // duplicated as named constants here makes the bar -> colour
+  // intention explicit at the call site.
+  const BARS_FILL_COLOR = {
+    none: '#3DAE5A',  // green
+    low: '#F2A516',   // amber
+    high: '#E0492E',  // red
+  };
+  const BARS_LEVEL_LABEL = {
+    none: 'None',
+    low: 'In season',
+    high: 'At peak',
+    mixed: 'Sources disagree',
+    unknown: 'Unknown',
+    nodata: 'No data',
+  };
 
   // ── Card class ────────────────────────────────────────────────────
   class PollenWatchCard extends HTMLElement {
@@ -419,23 +582,155 @@
     }
 
     setConfig(config) {
-      if (!config?.species) {
+      if (!config || typeof config !== 'object') {
+        throw new Error('pollenwatch-card: config object required');
+      }
+      // YAML override of layout — explicit beats the integration default.
+      // Unknown values are rejected here so a typo (`layout: tile`) surfaces
+      // as a setup error rather than a silent fallback to gauge.
+      const yamlLayout = config.layout;
+      if (yamlLayout !== undefined && !ALLOWED_LAYOUTS.has(yamlLayout)) {
         throw new Error(
-          'pollenwatch-card: species is required (any canonical species ' +
-          'from species_registry; e.g. grass, birch, hazel, plantago)'
+          `pollenwatch-card: layout must be one of ${[...ALLOWED_LAYOUTS].join(', ')} ` +
+          `(got ${JSON.stringify(yamlLayout)})`
         );
       }
+      // Gauge mode keeps its v0.3.0 contract: `species` is required because
+      // there is no discovery — a single sensor per card. Overview modes
+      // may omit `species` (discovery fills it in) but accept it as a
+      // curated override.
+      const isOverviewYaml = OVERVIEW_LAYOUTS.has(yamlLayout);
+      if (!isOverviewYaml && yamlLayout !== LAYOUT_BARS && yamlLayout !== LAYOUT_COMPACT &&
+          yamlLayout !== LAYOUT_TILES && !config.species) {
+        // Gauge layout (default OR explicit) requires species.
+        throw new Error(
+          'pollenwatch-card: species is required for layout: gauge ' +
+          '(any canonical species from species_registry; e.g. grass, birch)'
+        );
+      }
+      const explicitSpecies = Array.isArray(config.species)
+        ? config.species.slice()
+        : (typeof config.species === 'string' ? [config.species] : null);
       this._config = {
         show_mixed_span: false,
         expanded_default: false,
+        show_inactive: false,
         ...config,
+        // Normalised forms — single source of truth downstream.
+        _yamlLayout: yamlLayout || null,
+        _explicitSpecies: explicitSpecies,
       };
       this._expanded = !!this._config.expanded_default;
+      // Discovery state: filled in on first `set hass` either from WS or
+      // from a hass.states scan. Null until then; gauge mode doesn't need it.
+      this._discoveredLayout = null;     // integration's CONF_DEFAULT_LAYOUT
+      this._discoveredSpecies = null;    // CONF_SELECTED_SPECIES (overview only)
+      this._discoveryPromise = null;     // single in-flight WS call
+      this._resolvedLayout = this._resolveLayout();  // best-effort sync
       this._build();
     }
 
+    // Resolution order (locked, per docs/MULTISPECIES_CARD_PLAN.md):
+    //   1. explicit per-card YAML `layout:` — power-user, per-card control
+    //   2. integration's CONF_DEFAULT_LAYOUT (from pollenwatch/config WS)
+    //   3. 'gauge' — final fallback so a fresh install or WS failure
+    //      keeps the pre-v2.4 visual the user already knows.
+    // Mirrors the species override pattern (explicit YAML > discovery > default).
+    _resolveLayout() {
+      if (this._config._yamlLayout) return this._config._yamlLayout;
+      if (this._discoveredLayout && ALLOWED_LAYOUTS.has(this._discoveredLayout)) {
+        return this._discoveredLayout;
+      }
+      return LAYOUT_GAUGE;
+    }
+
+    // Species list for overview mode. Same layered rule: explicit YAML
+    // species: [...] beats WS-discovered selected_species beats the
+    // hass.states scan (older integration / WS failure fallback).
+    _resolveSpecies() {
+      if (this._config._explicitSpecies) return this._config._explicitSpecies;
+      if (this._discoveredSpecies) return this._discoveredSpecies;
+      return this._scanSpecies();
+    }
+
+    // Fallback discovery: scan hass.states for analytics-consensus sensor IDs.
+    // Used when the WS command isn't available (older integration) OR has
+    // errored. Merges species across multiple config entries (cannot
+    // distinguish entries here); the YAML override is the documented
+    // disambiguation for multi-entry installs.
+    _scanSpecies() {
+      const states = this._hass?.states;
+      if (!states) return [];
+      const prefix = 'sensor.pollenwatch_analytics_';
+      const suffix = '_consensus';
+      const out = [];
+      for (const id of Object.keys(states)) {
+        if (id.startsWith(prefix) && id.endsWith(suffix)) {
+          out.push(id.slice(prefix.length, id.length - suffix.length));
+        }
+      }
+      out.sort();
+      return out;
+    }
+
+    // Async one-shot resolution of the integration's CONF_SELECTED_SPECIES
+    // and CONF_DEFAULT_LAYOUT via the pollenwatch/config WS command. Runs
+    // on first hass-set per session; subsequent state pushes use cached
+    // values. Failure (no command, no matching entry) is silent — the
+    // resolvers fall back per their layered rule.
+    async _ensureDiscovery() {
+      if (this._discoveryPromise) return this._discoveryPromise;
+      if (!this._hass?.callWS) {
+        // No callWS — pre-modern HA. Discovery is the scan fallback only.
+        this._discoveryPromise = Promise.resolve();
+        return this._discoveryPromise;
+      }
+      // Pick an entry_id: prefer the first PollenWatch config entry visible
+      // via hass.entries. HA exposes entries on `hass.config.entries`? No —
+      // they're on `hass.entries` keyed by entry_id, OR fetched via the
+      // config_entries/get WS command. Cleanest: ask for the list via WS,
+      // pick the first pollenwatch entry. If none, give up gracefully.
+      this._discoveryPromise = (async () => {
+        try {
+          const entries = await this._hass.callWS({
+            type: 'config_entries/get',
+            domain: 'pollenwatch',
+          });
+          if (!Array.isArray(entries) || entries.length === 0) return;
+          const entryId = entries[0].entry_id;
+          const result = await this._hass.callWS({
+            type: 'pollenwatch/config',
+            entry_id: entryId,
+          });
+          if (result?.selected_species) {
+            this._discoveredSpecies = result.selected_species.slice();
+          }
+          if (result?.default_layout) {
+            this._discoveredLayout = result.default_layout;
+          }
+          // Re-evaluate the resolved layout; if it changed, rebuild.
+          const next = this._resolveLayout();
+          if (next !== this._resolvedLayout) {
+            this._resolvedLayout = next;
+            this._build();
+          }
+        } catch (_e) {
+          // Endpoint absent / errored — fall back to scan + gauge per the
+          // resolution rules. Deliberately silent; this is expected on
+          // older integrations or transient WS failures.
+        }
+      })();
+      return this._discoveryPromise;
+    }
+
     set hass(hass) {
+      const wasUnset = !this._hass;
       this._hass = hass;
+      // Kick off discovery once per session. Overview mode needs it for
+      // species + layout resolution; gauge mode benefits too because a
+      // future YAML edit can flip the layout without re-fetching. Silent
+      // on failure — _resolveLayout / _resolveSpecies degrade gracefully.
+      if (wasUnset) this._ensureDiscovery();
       if (this.shadowRoot.childElementCount > 0) this._render();
     }
 
@@ -446,6 +741,26 @@
     }
 
     _build() {
+      // Layout dispatch. compact/tiles fall through to gauge for now —
+      // they're Stage-3/4 placeholders. A console.warn surfaces the
+      // user's chosen-but-unimplemented layout so it's not silent drift.
+      const layout = this._resolvedLayout;
+      if (layout === LAYOUT_BARS) {
+        this._buildBars();
+        return;
+      }
+      if (layout === LAYOUT_COMPACT || layout === LAYOUT_TILES) {
+        /* eslint-disable no-console */
+        console.warn(
+          `pollenwatch-card: layout: ${layout} is reserved for a future ` +
+          `stage; falling back to 'gauge'. Set layout: bars for the only ` +
+          `multi-species layout currently shipped.`
+        );
+      }
+      this._buildGauge();
+    }
+
+    _buildGauge() {
       const species = this._config.species;
       this.shadowRoot.innerHTML = `
         <style>${CARD_CSS}</style>
@@ -486,6 +801,14 @@
 
     _render() {
       if (!this._hass || !this._config) return;
+      if (this._resolvedLayout === LAYOUT_BARS) {
+        this._renderBars();
+        return;
+      }
+      this._renderGauge();
+    }
+
+    _renderGauge() {
       const species = this._config.species;
       const {
         state, source_levels = {}, source_count, max_possible, last_changed,
@@ -570,6 +893,124 @@
             }</span>
           </div>
         `).join('');
+    }
+
+    // ── Bars layout ────────────────────────────────────────────────
+    _buildBars() {
+      // Single grid container; rows are rendered in _renderBars() and
+      // re-rendered on every state push. Keeping the DOM cheap: no
+      // per-row event listeners attached here — delegated via the
+      // grid's click handler.
+      this.shadowRoot.innerHTML = `
+        <style>${CARD_CSS}</style>
+        <ha-card class="card">
+          ${this._config.title ? `<div class="header"><div class="title">${this._config.title}</div></div>` : ''}
+          <div class="bars-grid" data-bars></div>
+        </ha-card>
+      `;
+      const grid = this.shadowRoot.querySelector('[data-bars]');
+      grid.addEventListener('click', (e) => {
+        const row = e.target.closest('.bar-row[data-entity]');
+        if (!row) return;
+        this._fireMoreInfo(row.getAttribute('data-entity'));
+      });
+      grid.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const row = e.target.closest('.bar-row[data-entity]');
+        if (!row) return;
+        e.preventDefault();
+        this._fireMoreInfo(row.getAttribute('data-entity'));
+      });
+    }
+
+    _renderBars() {
+      const grid = this.shadowRoot.querySelector('[data-bars]');
+      if (!grid) return;
+      const species = this._resolveSpecies();
+      if (species.length === 0) {
+        // Pre-discovery (WS in-flight, scan empty) OR a truly empty
+        // install. Render a soft hint, not a broken layout — discovery
+        // will re-trigger _build() once it resolves and replace this.
+        grid.innerHTML = `<div class="bars-empty">No PollenWatch species found yet.</div>`;
+        return;
+      }
+      // Map species → consensus state (uses the existing gauge resolver
+      // so the bars layout sees the SAME state machine as the gauge —
+      // single source of truth for none/low/high/mixed/unknown/nodata).
+      const rows = species.map((s) => {
+        const { state, source_count, max_possible } = resolveState(this._hass, s);
+        const consensusId = `sensor.pollenwatch_analytics_${s}_consensus`;
+        const consensus = this._hass.states[consensusId];
+        const basis = consensus?.attributes?.threshold_basis;
+        return { species: s, state, source_count, max_possible, consensusId, basis };
+      });
+      // show_inactive: false (default) hides ONLY `none` rows. unknown
+      // and nodata still render — no-data is information, not absence
+      // (matches the gauge's reading-label gray-never-green rule).
+      const visible = this._config.show_inactive
+        ? rows
+        : rows.filter((r) => r.state !== 'none');
+      if (visible.length === 0) {
+        grid.innerHTML = `<div class="bars-empty">All clear — no active pollen today.</div>`;
+        return;
+      }
+      grid.innerHTML = visible.map((r) => this._renderBarRow(r)).join('');
+    }
+
+    _renderBarRow({ species, state, consensusId, basis }) {
+      const levelWord = BARS_LEVEL_LABEL[state] || state;
+      // Fill width + colour are tier-coded (severity tokens). Mixed
+      // and unknown/nodata override via the CSS state class — leave the
+      // inline style empty for those so the stylesheet rules apply.
+      const isPlain = state === 'none' || state === 'low' || state === 'high';
+      const widthPct = isPlain ? BARS_FILL_PCT[state] : 0;
+      const fillColor = isPlain ? BARS_FILL_COLOR[state] : '';
+      const fillStyle = isPlain
+        ? `width:${widthPct}%;background:${fillColor};`
+        : '';
+      // Provenance marker — reuse the v2.3 helper + strings. Rendered
+      // INSIDE the .bar-level span so it sits next to the level word
+      // visually, same family/estimated -> marker rule as the gauge.
+      const marker = provenanceMarker(basis);
+      const markerHtml = marker
+        ? `<span class="provenance-marker" role="img" tabindex="0" ` +
+          `title="${this._escAttr(marker.tooltip)}" ` +
+          `aria-label="${this._escAttr(marker.ariaLabel)}">` +
+          `<span class="sr-only">${this._escText(marker.ariaLabel)}</span>` +
+          `</span>`
+        : '';
+      return `
+        <button class="bar-row state-${state}" data-entity="${consensusId}"
+                role="button" tabindex="0"
+                aria-label="${this._escAttr(cap(species))}: ${this._escAttr(levelWord)}">
+          <span class="bar-name">${cap(species)}</span>
+          <span class="bar-track"><span class="bar-fill" style="${fillStyle}"></span></span>
+          <span class="bar-level">
+            <span class="bar-level-word">${levelWord}</span>
+            ${markerHtml}
+          </span>
+        </button>
+      `;
+    }
+
+    _fireMoreInfo(entityId) {
+      const event = new Event('hass-more-info', { bubbles: true, composed: true });
+      event.detail = { entityId };
+      this.dispatchEvent(event);
+    }
+
+    // Minimal HTML escaping for attribute / text content inserted via
+    // innerHTML. The set of values is small and trusted (level words,
+    // capitalized species names, provenance strings from a constant) but
+    // species can be user-supplied via YAML so we escape defensively.
+    _escAttr(s) {
+      return String(s ?? '')
+        .replaceAll('&', '&amp;').replaceAll('"', '&quot;')
+        .replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    }
+    _escText(s) {
+      return String(s ?? '')
+        .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     }
   }
 
