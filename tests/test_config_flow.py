@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
@@ -15,12 +17,16 @@ from custom_components.pollenwatch.const import (
     CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
+    CONF_DEFAULT_LAYOUT,
     CONF_ENABLED,
     CONF_SELECTED_SPECIES,
     CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_UPDATE_INTERVAL,
+    DEFAULT_LAYOUT,
     DOMAIN,
+    LAYOUT_BARS,
+    LAYOUT_GAUGE,
     SOURCE_POLLENINFORMATION,
     new_sources_config,
 )
@@ -270,6 +276,84 @@ async def test_options_store_sensitivity_multiplier(hass: HomeAssistant) -> None
     assert sensitivity["birch"] == 0.5
     # Unspecified species fall back to the default (1.0) in the form.
     assert sensitivity["olive"] == 1.0
+
+
+async def test_options_default_layout_round_trips(hass: HomeAssistant) -> None:
+    """v2.4+: the layout dropdown stores into entry.options and reads back.
+
+    Set 'bars'; assert the option round-trips. The card consumes this via
+    the pollenwatch/config WS endpoint (covered in test_websocket_api.py).
+    """
+    entry = _options_entry()
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
+            CONF_DEFAULT_LAYOUT: LAYOUT_BARS,
+            CONF_UPDATE_INTERVAL: 60,
+            CONF_ENABLE_PI: False,
+        },
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_DEFAULT_LAYOUT] == LAYOUT_BARS
+
+
+async def test_options_default_layout_falls_back_for_legacy_entry(
+    hass: HomeAssistant,
+) -> None:
+    """A pre-v2.4 entry has no CONF_DEFAULT_LAYOUT key; the form must pre-fill
+    'gauge' and a submission that omits the key must still write 'gauge'
+    (the schema default). No migration / no entry-version bump."""
+    entry = _options_entry()
+    # Sanity: the fixture omits CONF_DEFAULT_LAYOUT — this is the legacy shape.
+    assert CONF_DEFAULT_LAYOUT not in entry.options
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    # Submit without the layout key — voluptuous fills the schema default.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
+            CONF_UPDATE_INTERVAL: 60,
+            CONF_ENABLE_PI: False,
+        },
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_DEFAULT_LAYOUT] == LAYOUT_GAUGE
+    assert DEFAULT_LAYOUT == LAYOUT_GAUGE
+
+
+async def test_options_default_layout_rejects_invalid_value(
+    hass: HomeAssistant,
+) -> None:
+    """An out-of-enum value (e.g. typoed 'spinner') must be rejected at the
+    selector level — the option store must never receive a layout the card
+    cannot render."""
+    entry = _options_entry()
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    # Submitting an unknown value raises voluptuous.MultipleInvalid before
+    # the flow's handler is reached. The card-facing storage stays clean.
+    with pytest.raises(vol.Invalid):
+        await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_SELECTED_SPECIES: ["grass", "birch"],
+                CONF_DEFAULT_LAYOUT: "spinner",
+                CONF_UPDATE_INTERVAL: 60,
+                CONF_ENABLE_PI: False,
+            },
+        )
+
+    # Nothing was written.
+    assert CONF_DEFAULT_LAYOUT not in entry.options
 
 
 async def test_options_pi_requires_country_and_key(hass: HomeAssistant) -> None:

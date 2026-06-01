@@ -170,6 +170,10 @@ async def async_setup_entry(
     # the card on first config-entry load (no-op on subsequent entries).
     await _async_register_card(hass)
 
+    # Register the frontend-facing WS API once per HA boot. Idempotent.
+    from .websocket_api import async_register as _async_register_ws
+    _async_register_ws(hass)
+
     coordinators = build_coordinators(hass, entry)
     # Open-Meteo is the primary, keyless source: it must be ready or the entry
     # retries. Optional sources (polleninformation) refresh non-blockingly so a
