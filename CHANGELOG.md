@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.0](https://github.com/TheDave94/pollenwatch/compare/v2.2.1...v2.3.0) (2026-06-01)
+
+
+### Features
+
+* add threshold_basis derived attribute (provenance grouping for UI) ([#13](https://github.com/TheDave94/pollenwatch/issues/13)) ([398fbe2](https://github.com/TheDave94/pollenwatch/commit/398fbe2b194ba75a1a79d1399561b4570583a068))
+* surface threshold provenance marker in bundled card ([#15](https://github.com/TheDave94/pollenwatch/issues/15)) ([e996c67](https://github.com/TheDave94/pollenwatch/commit/e996c674bcee2c3d726eab43cc214584dd8d42c8))
+
 ## [2.2.1](https://github.com/TheDave94/pollenwatch/compare/v2.2.0...v2.2.1) (2026-06-01)
 
 
