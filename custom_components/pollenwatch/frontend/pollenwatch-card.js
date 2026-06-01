@@ -13,7 +13,7 @@
  * show_mixed_span?: false, expanded_default?: false }.
  */
 (() => {
-  const CARD_VERSION = '0.4.0';  // v2.4 — `bars` multi-species overview layout
+  const CARD_VERSION = '0.5.0';  // v2.4 — `bars` + `compact` multi-species overview layouts
 
   // Resolved layout. 'gauge' is the pre-v2.4 single-species view, unchanged.
   // 'bars' is the Stage-2 multi-species overview. 'compact' and 'tiles' are
@@ -528,6 +528,100 @@
     .bar-row.state-mixed .bar-level-word { color: var(--primary-text-color, #2A3540); }
     /* unknown/nodata: secondary-text (default) — no override needed. */
 
+    /* === Compact overview layout (v2.4+) =========================
+       Dense dot-grid: severity DOT + species name + level word.
+       Denser than bars (more columns, smaller rows) for users with
+       many configured species. The dot is the magnitude channel;
+       the level word is the redundant text channel. show_inactive
+       gates the same way (hide none, keep unknown/nodata).
+       Mixed-dot hatch RHYMES with bars' hatched fill (same 45°
+       direction, same --secondary-text-color × --divider-color
+       neutral pair) — finer pitch because the surface is ~11px,
+       not full-width. Cross-layout consistency: a user reading
+       'stripes = sources disagree' in bars sees the same word
+       in compact. */
+    .compact-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 2px 12px;
+    }
+    .compact-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 3px 6px;
+      min-height: 22px;
+      border-radius: 4px;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      width: 100%;
+    }
+    .compact-row:hover, .compact-row:focus-visible {
+      background: var(--secondary-background-color, rgba(0,0,0,0.04));
+      outline: none;
+    }
+    .compact-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 999px;
+      flex-shrink: 0;
+      background: var(--disabled-color, #AEB7C0);
+    }
+    /* Severity-tinted dots reuse the gauge/bars palette — single source
+       of truth for the severity colour scale. */
+    .compact-row.state-none  .compact-dot { background: #3DAE5A; }
+    .compact-row.state-low   .compact-dot { background: #F2A516; }
+    .compact-row.state-high  .compact-dot { background: #E0492E; }
+    /* Mixed: hatched stripe. Same 45° + neutral token pair as bars,
+       at 3px period (1.5px stripe / 1.5px gap) so the stripe direction
+       is legible on the 11px dot. If this reads as muddy gray rather
+       than crisp stripes at real size, bump the dot to ~13px OR coarsen
+       to 4px period — do NOT abandon the hatch (cross-layout consistency
+       point). 0.85 opacity matches bars. */
+    .compact-row.state-mixed .compact-dot {
+      background: repeating-linear-gradient(
+        45deg,
+        var(--secondary-text-color, #7C8794) 0 1.5px,
+        var(--divider-color, #ECE4D6) 1.5px 3px
+      );
+      opacity: 0.85;
+    }
+    /* Unknown / nodata: faint gray dot, never green. The v2.3.0
+       honesty rule — empty readings are gray, not the green of
+       'actively zero'. */
+    .compact-row.state-unknown .compact-dot,
+    .compact-row.state-nodata  .compact-dot {
+      background: var(--disabled-color, #AEB7C0);
+      opacity: 0.6;
+    }
+    .compact-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-transform: capitalize;
+    }
+    .compact-level {
+      font-size: 12px;
+      color: var(--secondary-text-color, #7C8794);
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    /* Level-word colour mirrors bars + the gauge's reading-label rule. */
+    .compact-row.state-none  .compact-level-word { color: #3DAE5A; }
+    .compact-row.state-low   .compact-level-word { color: #F2A516; }
+    .compact-row.state-high  .compact-level-word { color: #E0492E; }
+    .compact-row.state-mixed .compact-level-word { color: var(--primary-text-color, #2A3540); }
+    /* unknown/nodata: secondary-text (default) — no override needed. */
+
     @media (prefers-reduced-motion: reduce) {
       .bar-fill { transition: none !important; }
     }
@@ -741,20 +835,24 @@
     }
 
     _build() {
-      // Layout dispatch. compact/tiles fall through to gauge for now —
-      // they're Stage-3/4 placeholders. A console.warn surfaces the
-      // user's chosen-but-unimplemented layout so it's not silent drift.
+      // Layout dispatch. tiles falls through to gauge for now — Stage-4
+      // placeholder. A console.warn surfaces the user's chosen-but-
+      // unimplemented layout so it's not silent drift.
       const layout = this._resolvedLayout;
       if (layout === LAYOUT_BARS) {
         this._buildBars();
         return;
       }
-      if (layout === LAYOUT_COMPACT || layout === LAYOUT_TILES) {
+      if (layout === LAYOUT_COMPACT) {
+        this._buildCompact();
+        return;
+      }
+      if (layout === LAYOUT_TILES) {
         /* eslint-disable no-console */
         console.warn(
           `pollenwatch-card: layout: ${layout} is reserved for a future ` +
-          `stage; falling back to 'gauge'. Set layout: bars for the only ` +
-          `multi-species layout currently shipped.`
+          `stage; falling back to 'gauge'. Set layout: bars or compact ` +
+          `for the multi-species layouts currently shipped.`
         );
       }
       this._buildGauge();
@@ -803,6 +901,10 @@
       if (!this._hass || !this._config) return;
       if (this._resolvedLayout === LAYOUT_BARS) {
         this._renderBars();
+        return;
+      }
+      if (this._resolvedLayout === LAYOUT_COMPACT) {
+        this._renderCompact();
         return;
       }
       this._renderGauge();
@@ -987,6 +1089,88 @@
           <span class="bar-track"><span class="bar-fill" style="${fillStyle}"></span></span>
           <span class="bar-level">
             <span class="bar-level-word">${levelWord}</span>
+            ${markerHtml}
+          </span>
+        </button>
+      `;
+    }
+
+    // ── Compact layout ─────────────────────────────────────────────
+    // Mirrors _buildBars/_renderBars structurally — grid container
+    // built once, rows re-rendered on each state push, single delegated
+    // click/keydown handler. Compact's only differences from bars are
+    // (a) the dot replaces the track-and-fill and (b) denser grid
+    // columns. All discovery + filtering + state-resolution + marker +
+    // more-info delegation is reused unchanged.
+    _buildCompact() {
+      this.shadowRoot.innerHTML = `
+        <style>${CARD_CSS}</style>
+        <ha-card class="card">
+          ${this._config.title ? `<div class="header"><div class="title">${this._config.title}</div></div>` : ''}
+          <div class="compact-grid" data-compact></div>
+        </ha-card>
+      `;
+      const grid = this.shadowRoot.querySelector('[data-compact]');
+      grid.addEventListener('click', (e) => {
+        const row = e.target.closest('.compact-row[data-entity]');
+        if (!row) return;
+        this._fireMoreInfo(row.getAttribute('data-entity'));
+      });
+      grid.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const row = e.target.closest('.compact-row[data-entity]');
+        if (!row) return;
+        e.preventDefault();
+        this._fireMoreInfo(row.getAttribute('data-entity'));
+      });
+    }
+
+    _renderCompact() {
+      const grid = this.shadowRoot.querySelector('[data-compact]');
+      if (!grid) return;
+      const species = this._resolveSpecies();
+      if (species.length === 0) {
+        grid.innerHTML = `<div class="bars-empty">No PollenWatch species found yet.</div>`;
+        return;
+      }
+      const rows = species.map((s) => {
+        const { state } = resolveState(this._hass, s);
+        const consensusId = `sensor.pollenwatch_analytics_${s}_consensus`;
+        const consensus = this._hass.states[consensusId];
+        const basis = consensus?.attributes?.threshold_basis;
+        return { species: s, state, consensusId, basis };
+      });
+      // Same show_inactive rule as bars: hide ONLY level=none rows;
+      // unknown/nodata still render because no-data is information,
+      // not absence (gauge's gray-never-green-for-empty rule).
+      const visible = this._config.show_inactive
+        ? rows
+        : rows.filter((r) => r.state !== 'none');
+      if (visible.length === 0) {
+        grid.innerHTML = `<div class="bars-empty">All clear — no active pollen today.</div>`;
+        return;
+      }
+      grid.innerHTML = visible.map((r) => this._renderCompactRow(r)).join('');
+    }
+
+    _renderCompactRow({ species, state, consensusId, basis }) {
+      const levelWord = BARS_LEVEL_LABEL[state] || state;
+      const marker = provenanceMarker(basis);
+      const markerHtml = marker
+        ? `<span class="provenance-marker" role="img" tabindex="0" ` +
+          `title="${this._escAttr(marker.tooltip)}" ` +
+          `aria-label="${this._escAttr(marker.ariaLabel)}">` +
+          `<span class="sr-only">${this._escText(marker.ariaLabel)}</span>` +
+          `</span>`
+        : '';
+      return `
+        <button class="compact-row state-${state}" data-entity="${consensusId}"
+                role="button" tabindex="0"
+                aria-label="${this._escAttr(cap(species))}: ${this._escAttr(levelWord)}">
+          <span class="compact-dot" aria-hidden="true"></span>
+          <span class="compact-name">${cap(species)}</span>
+          <span class="compact-level">
+            <span class="compact-level-word">${levelWord}</span>
             ${markerHtml}
           </span>
         </button>
