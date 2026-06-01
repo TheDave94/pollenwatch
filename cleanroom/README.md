@@ -204,7 +204,7 @@ The new system is **physically separated** from the maintainer-operated runtimes
 | Host port | 8125, 8124 | **8200** |
 | Bind-mount | `/home/thedave/cleanroom-pollenwatch/config/` | `cleanroom/runs/<timestamp>/config/` |
 
-The Hermes-driven throwaway watch (separate runtime, separate orchestration) is also never touched. See repo `CLAUDE.md` "DO NOT — protected runtimes."
+The maintainer-driven throwaway HA on port 8124 is also never touched (Hermes runs a read-only consensus-snapshot pass against it every 6h, no deploys). See repo `CLAUDE.md` "DO NOT — protected runtimes."
 
 ## File layout
 
