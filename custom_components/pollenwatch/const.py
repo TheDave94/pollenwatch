@@ -89,6 +89,21 @@ DEFAULT_SENSITIVITY: Final = 1.0
 MIN_SENSITIVITY: Final = 0.0
 MAX_SENSITIVITY: Final = 2.0
 
+# Default Lovelace card layout (v2.4+). Stored in options under
+# CONF_DEFAULT_LAYOUT and surfaced to the bundled card via the
+# pollenwatch/config WS endpoint. Per-card YAML `layout:` overrides
+# this default; absent option falls back to LAYOUT_GAUGE — the
+# pre-v2.4 single-species view, so upgrading entries see no change.
+CONF_DEFAULT_LAYOUT: Final = "default_layout"
+LAYOUT_GAUGE: Final = "gauge"
+LAYOUT_BARS: Final = "bars"
+LAYOUT_COMPACT: Final = "compact"
+LAYOUT_TILES: Final = "tiles"
+DEFAULT_LAYOUT: Final = LAYOUT_GAUGE
+ALLOWED_LAYOUTS: Final[tuple[str, ...]] = (
+    LAYOUT_GAUGE, LAYOUT_BARS, LAYOUT_COMPACT, LAYOUT_TILES,
+)
+
 # Multi-source enablement (config-entry version 2). Stored in options under
 # CONF_SOURCES as {source_key: {enabled: bool, api_key?: str}}.
 CONF_SOURCES: Final = "sources"

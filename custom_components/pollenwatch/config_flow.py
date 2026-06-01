@@ -25,9 +25,11 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     ALLERGENS,
+    ALLOWED_LAYOUTS,
     CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
+    CONF_DEFAULT_LAYOUT,
     CONF_ENABLED,
     CONF_REGION,
     CONF_SELECTED_SPECIES,
@@ -36,6 +38,7 @@ from .const import (
     CONF_STATION,
     CONF_UPDATE_INTERVAL,
     DEFAULT_ALLERGENS,
+    DEFAULT_LAYOUT,
     DEFAULT_SENSITIVITY,
     DEFAULT_UPDATE_INTERVAL_MIN,
     DOMAIN,
@@ -174,6 +177,18 @@ async def _async_probe_polleninformation(
     if result.status is SourceStatus.OUT_OF_COVERAGE:
         return "out_of_coverage"
     return None
+
+
+_LAYOUT_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=[
+            selector.SelectOptionDict(value=v, label=v.capitalize())
+            for v in ALLOWED_LAYOUTS
+        ],
+        mode=selector.SelectSelectorMode.DROPDOWN,
+        translation_key="default_layout",
+    )
+)
 
 
 _DWD_REGION_SELECTOR = selector.SelectSelector(
@@ -416,6 +431,12 @@ class PollenWatchOptionsFlow(OptionsFlow):
 
         if user_input is not None:
             allergens = user_input[CONF_SELECTED_SPECIES]
+            default_layout = user_input.get(CONF_DEFAULT_LAYOUT, DEFAULT_LAYOUT)
+            if default_layout not in ALLOWED_LAYOUTS:
+                # voluptuous already rejects via the selector, but keep a
+                # defensive guard so a malformed programmatic submission
+                # cannot poison the stored option.
+                errors[CONF_DEFAULT_LAYOUT] = "invalid_layout"
             enable_pi = user_input.get(CONF_ENABLE_PI, False)
             country = user_input.get(CONF_COUNTRY)
             api_key = user_input.get(CONF_API_KEY, "")
@@ -486,6 +507,7 @@ class PollenWatchOptionsFlow(OptionsFlow):
                         # v3 storage key. Form-field upstream keeps using
                         # CONF_ALLERGENS so strings.json translations resolve.
                         CONF_SELECTED_SPECIES: allergens,
+                        CONF_DEFAULT_LAYOUT: default_layout,
                         CONF_UPDATE_INTERVAL: user_input[CONF_UPDATE_INTERVAL],
                         CONF_SENSITIVITY: sensitivity,
                         CONF_SOURCES: {
@@ -528,12 +550,21 @@ class PollenWatchOptionsFlow(OptionsFlow):
         current_interval = _entry_option(
             entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_MIN
         )
+        # Entries created before v2.4 won't have CONF_DEFAULT_LAYOUT — read
+        # with the LAYOUT_GAUGE fallback so the form pre-fills with the
+        # existing visual (the only layout the pre-v2.4 card knew).
+        current_layout = _entry_option(entry, CONF_DEFAULT_LAYOUT, DEFAULT_LAYOUT)
+        if current_layout not in ALLOWED_LAYOUTS:
+            current_layout = DEFAULT_LAYOUT
         default_country = pi_cfg.get(CONF_COUNTRY) or self._supported_default_country()
         current_sensitivity = _entry_option(entry, CONF_SENSITIVITY, {})
         schema_dict = {
             vol.Required(
                 CONF_SELECTED_SPECIES, default=current_allergens
             ): _species_selector(self.hass.config.country),
+            vol.Required(
+                CONF_DEFAULT_LAYOUT, default=current_layout
+            ): _LAYOUT_SELECTOR,
             vol.Required(
                 CONF_UPDATE_INTERVAL, default=current_interval
             ): _INTERVAL_SELECTOR,
