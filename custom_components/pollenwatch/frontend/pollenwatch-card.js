@@ -13,7 +13,7 @@
  * show_mixed_span?: false, expanded_default?: false }.
  */
 (() => {
-  const CARD_VERSION = '0.2.0';  // v2.0 phase F — badge + species icon
+  const CARD_VERSION = '0.3.0';  // v2.3 — threshold provenance marker
 
   // Icon URL pattern. Icons live in custom_components/pollenwatch/frontend/
   // icons/{canonical_key}.svg and are served via the integration's static
@@ -197,6 +197,25 @@
 
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
+  // ── Threshold provenance marker (v2.3+) ───────────────────────────
+  // Reads the derived `threshold_basis` attribute on the consensus
+  // sensor and decides whether to render a small neutral marker in the
+  // header. SINGLE source of truth for the basis -> (marked, tooltip)
+  // mapping — the only place a card-side branch on threshold_basis
+  // lives. Glance rule: "species" -> unmarked (default); "family" |
+  // "estimated" -> marker visible. Severity colours are never used
+  // here — provenance is orthogonal to severity.
+  const PROVENANCE_MESSAGES = {
+    family: "Threshold inherited from EAACI's defined family group, not species-specific.",
+    estimated: 'Estimated bracket; no per-species threshold published.',
+  };
+
+  function provenanceMarker(basis) {
+    const text = PROVENANCE_MESSAGES[basis];
+    if (!text) return null;
+    return { tooltip: text, ariaLabel: text };
+  }
+
   // ── Card CSS ──────────────────────────────────────────────────────
   const CARD_CSS = `
     :host { display: block; }
@@ -345,6 +364,40 @@
     .card.source-count-1 .pwgauge .hub { opacity: 0.7; }
     .card.source-count-1 .reading-label { opacity: 0.82; }
 
+    /* === Threshold provenance marker (v2.3+) ===
+       Small neutral dot in the meta cluster signalling "this species'
+       threshold is on an EAACI family bracket or an estimated working
+       bracket, not species-specific peer-reviewed evidence." Uses
+       --secondary-text-color (the same muted-text token already
+       carrying the single-source label, meta-time, and reading-sub) —
+       theme-aware in both HA light and dark themes. NEVER uses a
+       severity colour. Visibility is toggled via the [hidden] attr
+       from JS; an sr-only child mirrors the tooltip text so screen
+       readers can read the provenance even though the visible mark
+       is wordless. tabindex="0" makes the tooltip keyboard-reachable
+       (browsers surface title= on focus). */
+    .provenance-marker {
+      display: none;
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--secondary-text-color, #7C8794);
+      flex-shrink: 0;
+      cursor: help;
+      align-self: center;
+      outline-offset: 2px;
+    }
+    .provenance-marker:not([hidden]) { display: inline-block; }
+    .provenance-marker .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     /* Reading label color per state — gray-never-green for empty */
     .reading.state-none .reading-label  { color: #3DAE5A; }
     .reading.state-low  .reading-label  { color: #F2A516; }
@@ -403,6 +456,7 @@
             <div class="meta">
               <span class="badge" data-badge></span>
               <span class="single-source-label">single source</span>
+              <span class="provenance-marker" data-provenance hidden role="img" tabindex="0" title="" aria-label=""><span class="sr-only" data-provenance-text></span></span>
               <span class="meta-time" data-time></span>
             </div>
           </div>
@@ -476,6 +530,29 @@
       const timeEl = this.shadowRoot.querySelector('[data-time]');
       const ago = relTime(last_changed);
       timeEl.textContent = ago || '';
+
+      // v2.3+: threshold provenance marker. The helper is the single
+      // place that branches on threshold_basis; this site only writes
+      // DOM. Missing consensus entity -> basis undefined -> no marker
+      // (same nodata-style fallback as the rest of the card).
+      const consensusEnt = this._hass.states[
+        `sensor.pollenwatch_analytics_${species}_consensus`
+      ];
+      const basis = consensusEnt?.attributes?.threshold_basis;
+      const marker = provenanceMarker(basis);
+      const markerEl = this.shadowRoot.querySelector('[data-provenance]');
+      const markerText = this.shadowRoot.querySelector('[data-provenance-text]');
+      if (marker) {
+        markerEl.hidden = false;
+        markerEl.title = marker.tooltip;
+        markerEl.setAttribute('aria-label', marker.ariaLabel);
+        markerText.textContent = marker.ariaLabel;
+      } else {
+        markerEl.hidden = true;
+        markerEl.title = '';
+        markerEl.setAttribute('aria-label', '');
+        markerText.textContent = '';
+      }
 
       // Per-source breakdown
       const rows = perSourceRows(this._hass, species, source_levels);
