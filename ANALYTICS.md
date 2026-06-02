@@ -134,6 +134,25 @@ onset / peak
 Boundary convention: a value exactly equal to a threshold belongs to the **higher**
 level (`value >= onset` → ≥1; `value >= peak` → 2).
 
+### Per-species refinements (v2.2 — issue #3)
+
+Six species have refined per-species brackets, overriding the family default
+above. Each refinement has a peer-reviewed grains/m³ cutoff (Tier-2 evidence in
+the per-species review); full provenance in `docs/THRESHOLD_PROVENANCE_REVIEW.md`.
+
+| Species | v2.1 bracket | v2.2 bracket | Cited basis |
+| --- | --- | --- | --- |
+| ragweed | 3 / 50 | **5 / 20** | PMC5357339 (<20), PMC2868868 (sensitive 1–5), Nature s41598-022-20069-y (Milan 4-severity) — was *under*-warning |
+| olive | 10 / 100 | **10 / 200** | Sciencedirect S1081120610010537 (162), PubMed 10394105 (~400 monosensitized), PMC7349006 — was *over*-warning regionally |
+| birch | 10 / 100 | **20 / 100** | Struß 2025 controlled chamber (doi:10.1159/000545509) validates peak 100; Aerobiologia 2021 refines low |
+| alder | 10 / 100 | **45 / 80** | Rapiejko 2007 (PMC6245103): 45 first symptoms, 80 all alder-allergics symptomatic |
+| hazel | 10 / 100 | **35 / 80** | Rapiejko 2007 (PMC4996891): operational low 0–35 / high >35; severe >80 |
+| mugwort | 10 / 100 | **3 / 50** | Aerobiologia 2021 + Rapiejko: clinically herb-like, not tree-like — v1 class-error fix |
+
+Behaviour change for users: an existing entity sitting at e.g. olive 150 was
+`high` under v2.1, becomes `low` under v2.2. Entity IDs are preserved; only the
+state value flips.
+
 ## recent_percentile (per-source, per-species) — definition
 
 "Today is at the Nth percentile of the recent period." Single-source (each source
@@ -211,11 +230,11 @@ automations/templates where length is irrelevant and the prefix is arguably
 clearer. Fresh installs register these IDs directly; the existing live instance
 was migrated via an entity-registry rename.
 
-## DWD scale — probe findings & PROPOSED mapping (pending review)
+## DWD scale — probe findings & shipped mapping
 
 Probed `https://opendata.dwd.de/climate_environment/health/alerts/s31fg.json`
 (open, no key) on 2026-05-29. "Pollenflug-Gefahrenindex für Deutschland" —
-**Germany only**.
+**Germany only**. The mapping below ships in `analytics.py`.
 
 - **Native scale:** a 7-point ordinal encoded as **strings**:
   `"0","0-1","1","1-2","2","2-3","3"` (half-steps are hyphenated strings, not
@@ -231,8 +250,8 @@ Probed `https://opendata.dwd.de/climate_environment/health/alerts/s31fg.json`
   Ambrosia→ragweed (5 of our 6); plus Esche/ash, Hasel/hazel, Roggen/rye (not
   tracked). **No olive** (DWD covers 5/6 canonical).
 
-**PROPOSED DWD→3-level mapping (operational alignment, by MEANING — not a
-sourced equivalence; pending maintainer review):**
+**DWD→3-level mapping (operational alignment, by MEANING — not a sourced
+equivalence):**
 
 | DWD value | meaning | level |
 | --- | --- | --- |
@@ -243,5 +262,5 @@ sourced equivalence; pending maintainer review):**
 
 Anchored on meaning: our level 2 = "high", and DWD's own "high" is `3` (with
 `2-3` = moderate-to-high → rounds up, health-conservative); DWD's "moderate"
-(`2`) is mid, not high → level 1; "none"/"none-low" → level 0. A pure
-`dwd_collapse` function (heavily boundary-tested) lands once approved.
+(`2`) is mid, not high → level 1; "none"/"none-low" → level 0. Implemented as
+`dwd_collapse` in `analytics.py` (boundary-tested).

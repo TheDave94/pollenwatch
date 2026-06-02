@@ -68,12 +68,24 @@ sudo ./svc.sh install
 sudo ./svc.sh start
 ```
 
-The `pollenwatch-throwaway` label is what `runs-on: [self-hosted, pollenwatch-throwaway]`
-in `.github/workflows/prerelease-gate.yml` matches against — keep it exactly
-that string.
+The `--labels pollenwatch-throwaway` flag is the **load-bearing piece** — it's
+what `runs-on: [self-hosted, pollenwatch-throwaway]` in
+`.github/workflows/prerelease-gate.yml` matches against. The `--name` is free
+(use anything that identifies the host). If you re-register without `--labels`
+the runner comes up with only the auto-assigned `self-hosted, Linux, X64` and
+the gate sits in queue forever.
 
-Verify under Settings → Actions → Runners: the new runner should show as
-**Idle** with the `self-hosted, Linux, X64, pollenwatch-throwaway` labels.
+Verify labels EITHER via the GitHub API (works headless, scriptable):
+
+```
+gh api /repos/TheDave94/pollenwatch/actions/runners \
+    --jq '.runners[] | {name, status, labels: [.labels[].name]}'
+# Expect: {"name":"...","status":"online","labels":["self-hosted","Linux","X64","pollenwatch-throwaway"]}
+```
+
+…OR in the UI: **Settings → Actions → Runners** — the new runner should show
+as **Idle** with all four labels. Labels are server-side in runner v2.x; they
+are NOT in the local `.runner` file.
 
 ### 2. Set the token secret (recommended)
 

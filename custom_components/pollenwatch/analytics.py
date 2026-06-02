@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 # ``ThresholdStatus`` enum: SPECIES_SPECIFIC / FAMILY_EAACI /
 # ESTABLISHED_NO_THRESHOLD / FAMILY_ANALOGY / FUNGAL). v2.2 reconciles this
 # table, the registry's enum, and the README to the approved literature review
-# in ``threshold-provenance-review-FINAL.md`` (issue #3) — see ANALYTICS.md
+# in ``docs/THRESHOLD_PROVENANCE_REVIEW.md`` (issue #3) — see ANALYTICS.md
 # for the rigorous EAACI/Pfaar 2017 derivation of the 3-level scale itself.
 #
 # Boundary convention: a value equal to a threshold belongs to the higher

@@ -179,14 +179,13 @@ The formula has two parts:
 | Selected species × sources enabled | Per-source ceiling | Analytics ceiling | Total ceiling |
 |---|---|---|---|
 | **6 species, 1 source** (Open-Meteo only) | 6 × 3 = 18 | 6 × 1 = 6 | **≤ 24** |
-| **6 species, 2 sources** (Open-Meteo + DWD) *— clean-room Munich; **measured 44** because DWD has no olive* | 6 × 3 × 2 = 36 | 6 × 2 = 12 | **≤ 48** |
+| **6 species, 2 sources** (Open-Meteo + DWD) | 6 × 3 × 2 = 36 | 6 × 2 = 12 | **≤ 48** |
 | **8 species, 4 sources** (AT default + DWD + ePIN, no Google) | 8 × 3 × 4 = 96 | 8 × 2 = 16 | **≤ 112** |
 | **+ adding Google** to any of the above | + species × 2 | unchanged | + species × 2 |
 
 A real install almost always lands well under the ceiling: actual coverage is
 sparse (e.g. ePIN measures plantago + urtica but not olive; DWD has no olive;
-MeteoSwiss only covers alder/birch/grass + beech). The clean-room verification
-above shows a worked example — Munich's 6 × 2 ceiling of 48 came in at 44 measured.
+MeteoSwiss only covers alder/birch/grass + beech).
 
 **The honest data-availability picture (one paragraph):** not every species is
 reported by every source — the matrix is asymmetric by design (DWD covers
@@ -215,38 +214,86 @@ basis per species).
 
 ## Dashboard card
 
-A combined-consensus severity gauge ships with the integration and is
-auto-registered as a Lovelace resource on install — no manual resource step.
-Add it to any dashboard:
+A bundled Lovelace card ships with the integration and is auto-registered as a
+resource on install — no manual resource step. It offers **four layouts** —
+pick one in **Options → Default card layout**, and every card on every
+dashboard follows it. Per-card YAML overrides are supported for power users.
+
+| Layout | What it shows | Best for |
+| --- | --- | --- |
+| **gauge** | One species, full categorical gauge + per-source breakdown on click | Single-allergy "is it bad right now?" view; the original v1.x card |
+| **bars** | One row per species, severity-tinted fill bar + level word | Flagship multi-species overview — your whole allergy picture in one card |
+| **compact** | Dense dot-grid, multi-column | Many species (8+); maximum density |
+| **tiles** | Severity-tinted icon + name + level, tile grid | Visual scan; mirrors a tile-style dashboard aesthetic |
+
+### Minimal YAML
+
+If you've set the default layout in Options, the card needs **no config at all**
+— it picks up your layout choice and your selected species automatically:
 
 ```yaml
 type: custom:pollenwatch-card
-species: grass            # any of the 24 canonical species keys
-                          # (alder, birch, grass, hazel, mugwort, olive, ragweed, rye,
-                          #  ash, oak, beech, carpinus, juglans, elm, plane_tree,
-                          #  cypress_family, holm_oak, plantago, urtica, nettle_family,
-                          #  rumex, chenopodium, asteraceae, alternaria)
-show_mixed_span: false    # optional; when true, the 'mixed' caption names
-                          # the conflicting span (e.g. 'none–high · across 5 sources')
-expanded_default: false   # optional; show per-source breakdown expanded by default
 ```
 
-The gauge has six honest states — `none`, `low`, `high`, `mixed`, `unknown`,
-`nodata` — with deliberately distinct treatments for missing data (gray, no
-needle) so an empty reading never visually resembles a safe-low one. A small
-`n/m` badge in the top-right shows how many of your enabled sources currently
-cover this species; single-source readings (`1/m`) get a desaturated gauge plus
-an explicit "single source" label so the honesty gradient is visible at a
-glance. See [`brand/GAUGE_SPEC.md`](brand/GAUGE_SPEC.md) for the full spec.
-Per-species breakdown is one click away — each source's native reading
-(grains/m³, DWD's 7-point string, polleninformation's 0–4 index, Google's UPI
-0–5) on demand. Adapts to HA's light + dark themes; brand severity ramp stays
-constant per spec.
+### Per-card YAML
 
-### Using the pollenprognos-card
+To pick a different layout for one card, or to customise:
 
-[pollenprognos-card](https://github.com/krissen/pollenprognos-card) does not yet
-auto-detect PollenWatch. Until a dedicated adapter exists, map the raw sensors
+```yaml
+# Single-species gauge (original view)
+type: custom:pollenwatch-card
+species: grass            # required for gauge — any canonical species key
+
+# Multi-species overview (bars / compact / tiles)
+type: custom:pollenwatch-card
+layout: bars              # one of: gauge | bars | compact | tiles
+# species: [grass, birch, oak]   # optional — omit to auto-discover from your selection
+title: "Today's pollen"   # optional header
+show_inactive: false      # optional — true also shows species currently at 'none'
+```
+
+Canonical species keys (any of the 24): `alder, birch, grass, hazel, mugwort,
+olive, ragweed, rye, ash, oak, beech, carpinus, juglans, elm, plane_tree,
+cypress_family, holm_oak, plantago, urtica, nettle_family, rumex, chenopodium,
+asteraceae, alternaria`. Gauge-only extras: `show_mixed_span: true` names the
+conflicting span on a `mixed` reading; `expanded_default: true` opens the
+per-source breakdown by default.
+
+### Honest states (every layout)
+
+Every layout uses the same six categorical states — `none`, `low`, `high`,
+`mixed`, `unknown`, `nodata` — with deliberately distinct treatments for
+missing data (gray, no severity colour, no needle in the gauge). An empty
+reading **never** visually resembles a safe-low one ("gray, never green").
+The `mixed` state uses a 45° hatch in the overview layouts, drawn consistently
+across bars/compact/tiles so it reads the same wherever it appears.
+
+### Provenance marker (v2.3+)
+
+Every row and every gauge carries a small marker next to its level word
+indicating where the underlying threshold comes from: peer-reviewed
+species-specific evidence, the EAACI family bracket, a working bracket without
+a published number, or analogy-only. Hover for the full explanation. The
+honesty is layered: the level word tells you *how bad*, the marker tells you
+*how solid the bracket behind that word is*. See `ANALYTICS.md` for the
+sourcing.
+
+### Per-species detail
+
+In `gauge` layout, clicking the body opens the per-source breakdown — each
+source's native reading (grains/m³, DWD's 7-point string, polleninformation's
+0–4 index, Google's UPI 0–5). In the overview layouts, clicking any row /
+tile opens HA's more-info dialog for that species' consensus sensor.
+
+The card adapts to HA's light + dark themes; the brand severity ramp stays
+constant per `brand/GAUGE_SPEC.md`.
+
+### Using a third-party card
+
+If you'd rather use a third-party Lovelace card, the raw per-source sensors are
+standard HA entities and work with anything that consumes them. For
+[pollenprognos-card](https://github.com/krissen/pollenprognos-card)
+specifically: it does not yet auto-detect PollenWatch, so map the raw sensors
 with the card's manual configuration (e.g. entity prefix
 `pollenwatch_open_meteo_`).
 
@@ -299,15 +346,10 @@ maintainer uses daily.
   the first grains); per-spore allergen content varies up to 15× day-to-day
   for alternaria. The five-tier label tracks **evidence provenance**, not
   clinical certainty.
-- **v2.2 numeric refinements (behavior change).** Six species got refined
-  brackets per the review: ragweed (3/50 → 5/20 — was under-warning), olive
-  (10/100 → 10/200 — was over-warning regionally), birch (10/100 → 20/100 —
-  peak validated by Struß 2025 controlled chamber, low refined per
-  Aerobiologia 2021), alder (10/100 → 45/80 — Rapiejko 2007 per-species
-  evidence), hazel (10/100 → 35/80 — same), mugwort (10/100 → 3/50 — fixes a
-  v1 class-error: mugwort is a herb, not a tree). Existing entities may flip
-  state on upgrade (e.g. olive at 150 grains/m³ was `high`, becomes `low`);
-  entity_ids are preserved, only state values change.
+- **Six species use refined per-species brackets** rather than the family
+  default — ragweed, olive, birch, alder, hazel, mugwort. Cited basis in
+  [`ANALYTICS.md`](ANALYTICS.md) § Per-species refinements; full provenance in
+  [`docs/THRESHOLD_PROVENANCE_REVIEW.md`](docs/THRESHOLD_PROVENANCE_REVIEW.md).
 - **alternaria is a fungal spore, not pollen** — kept opt-in (never
   preselected). Useful for people who track it alongside pollen; safe to
   ignore otherwise.
