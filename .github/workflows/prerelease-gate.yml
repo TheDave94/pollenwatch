@@ -1,0 +1,55 @@
+name: Tier 1 prerelease gate
+
+# Runs the discovery smoke-test suite against the throwaway HA whenever a
+# GitHub prerelease is published. Blocking on assertion failure, tolerant of
+# infra: if the test can't reach HA / auth / handshake, pytest skips and the
+# job exits 0 ("inconclusive"). If the WS contract is actually broken, asserts
+# fail and the job exits non-zero — blocking the release promotion.
+#
+# SELF-HOSTED RUNNER REQUIRED. This job runs on the VM that hosts the
+# throwaway HA (port 8124). The runner must be registered with the label
+# `pollenwatch-throwaway` so this `runs-on` matches. Registration steps:
+# see docs/PRERELEASE_GATE.md (David's setup, one-time).
+#
+# Token: prefers repo secret THROWAWAY_HA_TOKEN. If unset, the test falls back
+# to /home/thedave/throwaway-pollenwatch/phase1_token.txt on the runner host.
+# Recommendation: set the secret so token rotation is one `gh secret set` away.
+
+on:
+  release:
+    types: [prereleased]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why are you running the gate manually? (logged in run summary)'
+        required: false
+        default: 'manual smoke check'
+
+jobs:
+  discovery-gate:
+    name: Tier 1 — real-HA discovery smoke test
+    # `self-hosted` is GitHub's reserved label for any self-hosted runner;
+    # `pollenwatch-throwaway` is the project-specific label David assigns
+    # during runner registration. Both must match for this job to dispatch.
+    runs-on: [self-hosted, pollenwatch-throwaway]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install gate deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-e2e.txt
+
+      - name: Run discovery smoke tests
+        env:
+          HA_URL: http://127.0.0.1:8124
+          HA_TOKEN: ${{ secrets.THROWAWAY_HA_TOKEN }}
+        run: pytest tests/e2e/test_real_ha_discovery.py -v
