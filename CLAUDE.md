@@ -8,10 +8,10 @@ See `README.md` for the full feature surface. **Current phase state lives in `~/
 
 This repo has two parallel live environments that DO NOT belong to any interactive session here:
 
-1. **The Hermes-driven throwaway watch.** The throwaway HA box gets autonomously redeployed by a Hermes-scheduled job. **Do not touch it from this session.** No deploys, no entity-registry surgery, no docker stops/restarts, no `ha.py` writes against it. If the watch is misbehaving, surface the symptom — do not intervene.
+1. **The throwaway HA (`throwaway-pollenwatch` :8124).** A long-lived dev HA the maintainer drives by hand (HACS upgrades, manual cleanup). Hermes **only reads from** it: `~/.hermes/scripts/pollenwatch_consensus_snapshot.py` runs every 6h (`13 */6 * * *`), does a read-only `GET /api/states` with the LL token at `/home/thedave/throwaway-pollenwatch/phase1_token.txt`, and appends consensus + divergence snapshots to `~/.hermes/state/pollenwatch-watch/snapshots.csv`. Hermes does **NOT** deploy, restart, or mutate this box. Even so, **do not touch it from this session unless the maintainer asks** — no deploys, no entity-registry surgery, no docker stops/restarts, no `ha.py` writes against it. The maintainer drives all changes there by hand; CC's role is to not race the human operator.
 2. **The `pw-cleanroom` container** at `/home/thedave/cleanroom-pollenwatch/` (port 8125, host bind-mount `…/config` → `/config`). Used for pristine release-gate upgrade tests. **Do not touch its container, its config dir, or the `/tmp/cleanroom_*.py` helpers / `/tmp/cr-venv` from this session.** See `~/.claude/projects/-opt-repos-pollenwatch/memory/reference_cleanroom.md` for what it is, why it exists, and when the maintainer uses it.
 
-Both environments are operated deliberately by the maintainer (and Hermes, for the watch). Interactive sessions in this repo work on the code in `/opt/repos/pollenwatch` only — they do not actuate either runtime.
+Both environments are operated deliberately by the maintainer (Hermes' role on the throwaway is read-only snapshot-collection only — see above). Interactive sessions in this repo work on the code in `/opt/repos/pollenwatch` only — they do not actuate either runtime.
 
 ## Session boundaries — one phase per session
 
