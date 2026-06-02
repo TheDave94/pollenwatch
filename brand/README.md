@@ -2,8 +2,12 @@
 
 ## Overview
 **PollenWatch** is a Home Assistant integration that aggregates pollen/allergy
-forecasts from multiple sources into one **combined severity reading** (a 0–10
-index mapped to a four-step scale: Low / Moderate / High / Very High).
+forecasts from multiple sources into one **combined categorical reading** —
+`none / low / high / mixed`, plus first-class `unknown` / `nodata` states (see
+`GAUGE_SPEC.md` for the authoritative data model). Earlier brand-guide
+drafts framed this as a continuous 0–10 index with a four-step
+Low/Moderate/High/Very-High scale; that was superseded pre-v2.0 by the
+categorical model below.
 
 This package contains the brand identity and the visual system that should drive
 any UI you build for it: the app icon, the color palette, typography, the
@@ -52,11 +56,16 @@ choice, not an approximation.
 --pw-edge:        #ECE4D6;   /* borders / dividers */
 --pw-muted:       #7C8794;   /* secondary text */
 
-/* Severity ramp — the warning scale. Order is meaningful: green=safe, red=worst */
---pw-low:         #3DAE5A;   /* Low      (index 0–2.4)  */
---pw-moderate:    #F2A516;   /* Moderate (index 2.5–4.9)*/
---pw-high:        #EC7A1C;   /* High     (index 5.0–7.4)*/
---pw-very-high:   #E0492E;   /* Very High(index 7.5–10) */
+/* Severity ramp — the warning scale. Order is meaningful: green=safe, red=worst.
+ * Used by GAUGE_SPEC.md's categorical states (none/low/high) — see that doc for
+ * the state→color mapping. The fourth ramp slot (`--pw-very-high`) is retained
+ * for design surfaces (e.g. legends, status pills) that may want a fourth step;
+ * the shipped gauge uses three (none/low/high) plus neutral for mixed/unknown.
+ */
+--pw-low:         #3DAE5A;   /* maps to gauge state `none`  */
+--pw-moderate:    #F2A516;   /* maps to gauge state `low`   */
+--pw-high:        #EC7A1C;   /* optional 4-step middle      */
+--pw-very-high:   #E0492E;   /* maps to gauge state `high`  */
 
 /* Petal accents (decorative, icon only) */
 --pw-petal-yellow:#F2B705;
@@ -170,13 +179,15 @@ and is removed for mixed/missing. Missing states are **gray, never green**.
 
 ### 2. Status pill
 `display:inline-flex; gap:8px; padding:8px 16px 8px 12px; border-radius:999px;`
-background = the level's ramp color, text white 600, with a 10px white-ish dot.
-Labels: `Low` · `Moderate` · `High` · `Very High`.
+background = the state's ramp color, text white 600, with a 10px white-ish dot.
+Labels match the categorical states: `None` · `Low` · `High` · `Mixed`
+(plus muted `Unknown` / `No data` for missing readings; see `GAUGE_SPEC.md`).
 
 ### 3. Severity card (level reference)
-Card on `--pw-cloud`, 1px `--pw-edge`, radius 16: an 18px colored dot, the level
-name (Bricolage 600, 19px), the index range (`--pw-muted`, 13px), and a short
-description.
+Card on `--pw-cloud`, 1px `--pw-edge`, radius 16: an 18px colored dot, the state
+name (Bricolage 600, 19px), the state's grains/m³ band (`--pw-muted`, 13px;
+e.g. "≥ 100 grains/m³ — at peak"), and a short description. Same categorical
+states as the pill.
 
 ### 4. Dashboard card
 Header row = icon (≈44px) + title (Bricolage 600, 18px) + meta (`N sources ·
@@ -208,13 +219,17 @@ the **Species icons** section below for the full 24-species key list.
   light overlay. No color shift on hover.
 
 ## State Management
-Minimum state for a PollenWatch surface:
-- `index: number` (0–10), `level: 'low'|'moderate'|'high'|'very_high'` derived
-  from index thresholds (2.5 / 5.0 / 7.5).
+Minimum state for a PollenWatch surface (matches the categorical model — see
+`GAUGE_SPEC.md` for the authoritative table):
+- `state: 'none' | 'low' | 'high' | 'mixed' | 'unknown' | 'nodata'` — the
+  six honest states the gauge renders. There is no continuous index; the
+  needle rests at a segment center, never an interpolated value.
 - `sources: string[]` and `updatedAt: timestamp` for the meta line.
-- Per-allergen breakdown (optional) if you expose tree/grass/weed sub-readings —
-  reuse the same ramp + pill per allergen.
-- `loading` / `error` states for the fetch.
+- Per-species breakdown (optional) — each row carries the same state enum
+  plus its own ramp tinting; see the multi-species layouts in the bundled
+  card source.
+- `loading` / `error` map onto `unknown` / `nodata` respectively (gray,
+  needle removed — never green).
 
 ## Species icons — 24 plant signifiers
 
@@ -304,21 +319,3 @@ source of truth.)
 - `assets/repo-banner.png` — README hero, 2000×500
 - `assets/social-preview.png` — og:image, 1280×640
 - `PollenWatch Brand Guide.html` — the full visual reference (open in a browser)
-
----
-
-## How to drive an implementation with Claude Code / browser Claude
-1. Put this whole folder in (or alongside) your repo and open it with Claude Code.
-2. Prompt, e.g.:
-   > "Read `brand/README.md`, `brand/GAUGE_SPEC.md`, and the brand guide.
-   > Implement a PollenWatch severity card + gauge as a `<Lit/React/…>` component
-   > in this codebase, using our existing component and theming patterns. Wire the
-   > tokens into our theme. Start with the gauge, then the card, then the sidebar
-   > entry."
-3. Tell it your stack and any house rules (styling lib, file layout, design-token
-   location) so it maps the tokens into your system rather than hard-coding hex.
-4. Have it reference `assets/icon.svg` for in-app use and register the PNGs for
-   the Home Assistant brands repo.
-5. Iterate component-by-component; verify the **higher = worse** ramp survives in
-   your theme (especially dark mode).
-```

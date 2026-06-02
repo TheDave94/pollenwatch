@@ -4,7 +4,7 @@ Three layers of regression guard:
 
 1. **Registry layer:** the 5-value ThresholdStatus enum exists and each
    of the 24 canonical species lands in the bucket the approved literature
-   review (threshold-provenance-review-FINAL.md) assigns it. This guards
+   review (docs/THRESHOLD_PROVENANCE_REVIEW.md) assigns it. This guards
    against a future edit silently demoting (e.g.) cypress_family from
    FAMILY_EAACI back to FAMILY_ANALOGY without re-running the review.
 
@@ -43,7 +43,7 @@ from custom_components.pollenwatch.sources.species_registry import (
     threshold_basis_for,
 )
 
-# Approved tier assignments per threshold-provenance-review-FINAL.md
+# Approved tier assignments per docs/THRESHOLD_PROVENANCE_REVIEW.md
 # (2026-05-31). Tests assert membership two ways: (a) the registry agrees
 # with this expected mapping, (b) every species in the registry lands in
 # exactly one bucket.

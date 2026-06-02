@@ -194,6 +194,11 @@ whatever distinguishes the plant). Files in `assets/species/` — one SVG per
 canonical species key; see the **Species icons** section of `README.md` for the
 full key→signifier list and morphology notes.
 
+> Multi-species layout visual rules (bars/compact/tiles severity-tinting,
+> mixed-hatch geometry, gray-for-unknown treatment) live as CSS comments in
+> the card source: `custom_components/pollenwatch/frontend/pollenwatch-card.js`.
+> Single source of truth, alongside the implementation.
+
 - The icons are **color-neutral** (`--pw-grain-stroke` / `--pw-grain-fill`);
   inline them so each row inherits the theme and its own severity tint. A row's
   state still follows the same `none/low/high/mixed/unknown/nodata` model and the

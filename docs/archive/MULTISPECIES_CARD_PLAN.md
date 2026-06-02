@@ -1,11 +1,16 @@
 # Multi-species bundled card — design plan
 
-> **Status:** Forward-planning doc. **Nothing in this document is built yet.**
-> Captures the agreed design for a future multi-species mode of the bundled
-> Lovelace card (`custom_components/pollenwatch/frontend/pollenwatch-card.js`).
-> The current shipped card (v2.3.0, `CARD_VERSION = 0.3.0`) is single-species
-> only — gauge-per-species. This doc is the entry point a future session
-> picks up cold.
+> **Status: SHIPPED in v2.4.0 — preserved for design rationale; implementation
+> is the source of truth.** All four stages (1: options-flow + WS endpoint;
+> 2: bars; 3: compact; 4: tiles) landed in v2.4.0 (PRs #17/#19/#21/#22) on top
+> of the v2.3.0 single-species gauge card. The shipped card is
+> `custom_components/pollenwatch/frontend/pollenwatch-card.js` at
+> `CARD_VERSION = '0.6.0'`. This document captured the design decisions and
+> open questions before the build; the answers now live in code + code
+> comments. Kept here so a future reader can trace why the implementation
+> looks the way it does — deliberate-oriel-overlap on tiles, integration-
+> options-flow as the layout picker (not card YAML), render-branch
+> architecture in one custom element, etc.
 
 ## Honest reason this exists
 

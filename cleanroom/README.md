@@ -157,42 +157,21 @@ Maintained in `cleanroom/config/pinned_release.json`. Add new versions there as 
 - It is **not** a UI test — the bundled Lovelace card is not exercised.
 - It is **not** a HACS test — HACS is the install vehicle, not the SUT.
 - It is **not** an Options-flow test — interactive add/remove of species via the Options UI (and the orphan-prune that should follow) is **not** asserted here. See the manual checklist below.
-- It is **not** run on every PR — see Phase 2.
 
 ### Manual checklist the harness doesn't cover — interactive Options-flow verification on the throwaway
 
-The harness automates steps 1–4 below (Gates A–D). Steps **5–7** are interactive Options-flow add/remove checks that exercise the selection-governs-creation guarantee from the UI side, which the harness can't reach without a browser session. Step **8** is the live-install pass. Run steps 5–7 on `throwaway-pollenwatch` (port 8124) when validating an Options-flow change; run step 8 against AT live after the throwaway pass.
+The harness covers automated migration regression (Gates A–D). The interactive Options-flow paths (add/remove species via the UI and observe orphan-prune) need a browser session the harness can't drive. Run these on `throwaway-pollenwatch` (port 8124) when validating an Options-flow change; the live-install pass runs after the throwaway pass.
 
-Originally drafted as the pre-v2 ship verification protocol; steps 1–4 are now formally automated by `make cleanroom-pretag` (Gates A–D); steps 5–7 + 8 remain manual.
+1. Open Options → species. Add 2 new species (e.g. hazel, ash). Save. Verify entities for those 2 species appear within ~10s.
+2. Open Options → species. Remove 1 of the new ones (e.g. ash). Save. Verify the ash entities disappear from the registry (orphan-prune).
+3. Open Options → species. Remove an *original* species (e.g. olive). Save. Verify olive entities disappear, original 5 remain.
+4. Repeat verification on the AT live install **after** the throwaway pass.
 
-**Before any v2 release tag:**
+Gates A–D + these 4 manual steps must all pass before a tag is cut.
 
-1. Install v1.3.0 stable on the throwaway HA (Munich box per project memory). Confirm baseline: 6 species, ~100 entities, gauges render.
-   *(Automated by cleanroom-pretag — pinned baseline install via HACS.)*
-2. Snapshot the entity registry: `ha-cli registry export > before.json` (or the equivalent via WS API).
-   *(Automated by cleanroom-pretag — Gate B snapshot input.)*
-3. Update to v2 build (`hacs ⋮ → Reinstall` pointing at the v2 branch tag).
-   *(Automated by cleanroom-pretag — rsync HEAD into the running container.)*
-4. Restart HA. Verify:
-   - Config entry version is 3.
-   - `CONF_SELECTED_SPECIES` exists in options with the original 6.
-   - All original 6 species' raw + analytics entities are present at the **same entity_ids** (no churn).
-   - No "unavailable" entities appeared from migration.
-   *(Automated: Gate A = schema bump, Gate B = entity_id preservation, Gate C = no errors, Gate D = subset preservation.)*
-5. Open Options → species. Add 2 new species (e.g. hazel, ash). Save. Verify entities for those 2 species appear within ~10s.
-   *(MANUAL — interactive Options-flow add.)*
-6. Open Options → species. Remove 1 of the new ones (e.g. ash). Save. Verify the ash entities disappear from the registry (orphan-prune).
-   *(MANUAL — interactive Options-flow remove, orphan-prune via UI.)*
-7. Open Options → species. Remove an *original* species (e.g. olive). Save. Verify olive entities disappear, original 5 remain.
-   *(MANUAL — interactive Options-flow remove of an originally-selected species, orphan-prune via UI.)*
-8. Repeat verification on AT live install **after** the throwaway pass.
-   *(MANUAL — separate live deploy; not throwaway-scope.)*
+## CI
 
-All seven steps must pass before a tag is cut.
-
-## Phase 2 — CI (deferred)
-
-`.github/workflows/cleanroom.yml` is intentionally **out of scope** for Phase 1. The local `make cleanroom-pretag` proves the harness. CI inherits its assertions once local proves itself on a real release migration. Phase 2 plumbing will be a separate PR.
+`.github/workflows/cleanroom.yml` runs the same harness on every PR that touches integration code, `cleanroom/**`, `Makefile`, `requirements-cleanroom.txt`, or the workflow itself. Required status check on `main`; doc-only / test-only PRs that miss the path filter need an `--admin` merge (see `docs/RELEASE-INFRASTRUCTURE.md` § path-filter caveat).
 
 ## Operational safety — what this system does NOT touch
 

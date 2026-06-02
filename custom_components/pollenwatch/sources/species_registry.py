@@ -11,7 +11,7 @@ The 24-species set is the v2.0 expansion from the v1.x hand-picked 6
 v2.2 (issue #3): ``ThresholdStatus`` expanded from a contested
 ``YES``/``PARTIAL`` binary to a 5-value evidence-provenance tier,
 reconciled across analytics.py / README / this file to the approved
-literature review (``threshold-provenance-review-FINAL.md``).
+literature review (``docs/THRESHOLD_PROVENANCE_REVIEW.md``).
 
 Kept import-free of ``homeassistant`` so the data layer is testable in
 isolation — same discipline as ``sources/base.py`` and ``const.py``.
@@ -50,7 +50,7 @@ class ThresholdStatus(StrEnum):
 
     v2.2: 5-value tiering reconciled across all three files (this registry,
     ``analytics.py`` comments, ``README.md``) to the approved literature review
-    in ``threshold-provenance-review-FINAL.md`` (issue #3). The values
+    in ``docs/THRESHOLD_PROVENANCE_REVIEW.md`` (issue #3). The values
     describe **where the threshold number comes from**, not how clinically
     settled the number is — see the review for honest caveats on each tier.
     """

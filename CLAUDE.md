@@ -15,11 +15,11 @@ Both environments are operated deliberately by the maintainer (Hermes' role on t
 
 ## Session boundaries — one phase per session
 
-PollenWatch work is structured into phases (A, B, …, G for the v2.0 arc). Phases are natural session boundaries:
+PollenWatch work is structured into phases (e.g. v2.0 phases A–G; v2.4 stages 1–4 for the multi-species card). Phases are natural session boundaries:
 
 - **One phase = one session.** When a phase wraps (sign-off recorded in `project_pollenwatch.md`), summarise the deliverables into that memory anchor and start a fresh CC session for the next phase.
 - The single biggest pollenwatch session to date was 19.4 MB / max input context ≈ 999k tokens / 13 `/compact`s — because phases A–G ran in one session. Don't repeat that.
-- For sub-phase work (e.g. a single gate within Phase G), the existing session is fine; for the next phase, split.
+- For sub-phase work (e.g. a single gate within a phase, or one stage of a multi-stage arc), the existing session is fine; for the next phase, split.
 
 User-level `~/.claude/CLAUDE.md` has the general output discipline (Bash caps, ranged Reads, test-output verbatim) — it applies here.
 
@@ -39,7 +39,7 @@ User-level `~/.claude/CLAUDE.md` has the general output discipline (Bash caps, r
 
 ## Deploy / verify
 
-`ha.py` (repo-tracked HA REST helper) plus the HACS-WS deploy path are the canonical deploy mechanism — see `reference_ha_deploy.md` in project memory. `custom_components/` in the running install is gitignored (the live install lives outside the repo). **All deploys go to the maintainer's own throwaway dev box only**, never to the Hermes watch and never to `pw-cleanroom`.
+`ha.py` (repo-tracked HA REST helper) plus the HACS-WS deploy path are the canonical deploy mechanism — see `reference_ha_deploy.md` in project memory. `custom_components/` in the running install is gitignored (the live install lives outside the repo). **All deploys go to the throwaway dev box (`throwaway-pollenwatch` :8124) only**, never to `pw-cleanroom`. Hermes' read-only snapshot pass against the throwaway is fine; deploys are still the maintainer's hand.
 
 ## Credentials
 
