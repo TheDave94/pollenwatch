@@ -435,6 +435,7 @@ def test_consensus_five_sources_spanning_two_levels_is_mixed():
         (None, None),  # None in -> None out (explicit guard)
         (3, None),  # out-of-range -> None (LEVEL_LABELS.get miss)
         (-1, None),  # out-of-range -> None
+        (99, None),  # far out-of-range -> None (LEVEL_LABELS.get miss)
     ],
 )
 def test_level_label_maps_levels_and_passes_through_none(level, expected):
