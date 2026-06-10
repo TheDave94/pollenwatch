@@ -7,20 +7,23 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   hassfest:
     name: Hassfest
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: home-assistant/actions/hassfest@master
+      - uses: home-assistant/actions/hassfest@d05c25388490cd662baef8495e1bc764c3386153 # master @ 2026-06-09
 
   hacs:
     name: HACS
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hacs/action@main
+      - uses: hacs/action@dcb30e72781db3f207d5236b861172774ab0b485 # main, pinned per oriel-dashboard (commit 2026-01-26)
         with:
           category: integration
           # Brand assets are submitted to home-assistant/brands as a separate

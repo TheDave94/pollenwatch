@@ -19,6 +19,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
 jobs:
   cleanroom-pretag:
     name: cleanroom-pretag (v1.3.0 → HEAD, Gates A–D)
@@ -38,7 +41,7 @@ jobs:
         # filtering the trigger by paths (which left non-integration PRs with a
         # never-reported required check = permanent BLOCK), the job always runs
         # and only the heavy Gates A–D steps below are gated on this filter.
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3 (pinned 2026-06-10)
         id: changes
         with:
           filters: |
