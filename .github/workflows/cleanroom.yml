@@ -12,12 +12,6 @@ name: Cleanroom migration test
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'custom_components/pollenwatch/**'
-      - 'cleanroom/**'
-      - 'Makefile'
-      - 'requirements-cleanroom.txt'
-      - '.github/workflows/cleanroom.yml'
   workflow_dispatch:
     inputs:
       baseline:
@@ -38,17 +32,41 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Detect integration-code changes
+        # Required-check + path-filter deadlock fix: this job must always exist
+        # and report under its exact name on EVERY PR to main. Instead of
+        # filtering the trigger by paths (which left non-integration PRs with a
+        # never-reported required check = permanent BLOCK), the job always runs
+        # and only the heavy Gates A–D steps below are gated on this filter.
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            integration:
+              - 'custom_components/pollenwatch/**'
+              - 'cleanroom/**'
+              - 'Makefile'
+              - 'requirements-cleanroom.txt'
+              - '.github/workflows/cleanroom.yml'
+
+      - name: Neutral success (no integration-code changes)
+        if: steps.changes.outputs.integration != 'true'
+        run: echo "No integration-code changes — cleanroom harness not needed. Reporting success."
+
       - name: Set up Python 3.12
+        if: steps.changes.outputs.integration == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Install cleanroom requirements
+        if: steps.changes.outputs.integration == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-cleanroom.txt
 
       - name: Plant HACS PAT (from secret)
+        if: steps.changes.outputs.integration == 'true'
         # bootstrap.py reads ~/.config/pollenwatch-cleanroom/github-pat with
         # mode-600 check. Plant the secret in the runner home and chmod it.
         # If the secret is missing/empty, bootstrap will fail with a clear
@@ -69,11 +87,13 @@ jobs:
           wc -c "$HOME/.config/pollenwatch-cleanroom/github-pat"
 
       - name: Cleanroom config lint (HACS pin + log-allowlist guard)
+        if: steps.changes.outputs.integration == 'true'
         # Fail-fast before the long bootstrap. bootstrap.py also calls this
         # internally; running here gives an explicit GHA log step.
         run: make cleanroom-lint
 
       - name: make cleanroom-pretag (Gates A–D)
+        if: steps.changes.outputs.integration == 'true'
         # Honors workflow_dispatch input if provided; else uses pinned default.
         run: |
           set -euo pipefail
@@ -91,7 +111,7 @@ jobs:
         # Always run on failure so the artifact has the gate-fail evidence.
         # Files in runs/<id>/config/ may be root-owned (HA inside docker),
         # so chown first to make them readable by upload-artifact.
-        if: failure()
+        if: failure() && steps.changes.outputs.integration == 'true'
         run: |
           set -uo pipefail
           if [ -d cleanroom/runs ]; then
@@ -100,7 +120,7 @@ jobs:
           fi
 
       - name: Upload failure artifact
-        if: failure()
+        if: failure() && steps.changes.outputs.integration == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: cleanroom-fail-${{ github.run_id }}
@@ -121,5 +141,5 @@ jobs:
         # on the runner (the runner is ephemeral anyway, but tidy is tidy).
         # cleanup-all is name-prefix-filtered AND grep -v '^pw-cleanroom$'
         # so it cannot touch protected names — see cleanup.py PROTECTED set.
-        if: always()
+        if: always() && steps.changes.outputs.integration == 'true'
         run: make cleanroom-cleanup-all || true
