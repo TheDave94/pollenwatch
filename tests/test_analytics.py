@@ -12,6 +12,7 @@ from custom_components.pollenwatch.analytics import (
     daily_peaks,
     dwd_collapse,
     google_collapse,
+    level_label,
     percentile_rank,
     recent_percentile_from_series,
 )
@@ -420,3 +421,21 @@ def test_consensus_five_sources_spanning_two_levels_is_mixed():
     )
     assert res.state == "mixed"
     assert res.diverged is True
+
+
+# --- level_label -----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("level", "expected"),
+    [
+        (0, "none"),
+        (1, "low"),
+        (2, "high"),
+        (None, None),  # None in -> None out (explicit guard)
+        (3, None),  # out-of-range -> None (LEVEL_LABELS.get miss)
+        (-1, None),  # out-of-range -> None
+    ],
+)
+def test_level_label_maps_levels_and_passes_through_none(level, expected):
+    assert level_label(level) == expected
