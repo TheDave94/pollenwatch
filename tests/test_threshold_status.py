@@ -29,6 +29,7 @@ from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.pollenwatch.analytics import _THRESHOLDS
 from custom_components.pollenwatch.const import (
     CONF_ALLERGENS,
     CONF_SOURCES,
@@ -348,3 +349,67 @@ async def test_consensus_sensor_exposes_threshold_basis_invariant_with_raw(
             f"{species}: raw={raw_basis!r}, consensus={cons_basis!r}, "
             f"helper={helper_basis!r} — should all be identical"
         )
+
+
+# ---------------------------------------------------------------------------
+# Layer 4: numeric brackets locked to the review doc
+# ---------------------------------------------------------------------------
+# The exact (onset, peak) grains/m³ brackets, per the "Operational brackets —
+# LOCKED to analytics._THRESHOLDS" section of docs/THRESHOLD_PROVENANCE_REVIEW.md.
+# This is rigor-on-what-exists, NOT manufactured precision: the cited refinements
+# (birch/alder/hazel/olive/ragweed/grass) are study-derived; the rest are honest
+# class defaults (tree 10/100, herb 3/50). Locking the numbers here means a
+# bracket cannot drift in code without also editing the doc + this oracle.
+EXPECTED_BRACKETS: dict[str, tuple[float, float]] = {
+    # species-specific tier (13)
+    "birch": (20, 100),
+    "alder": (45, 80),
+    "hazel": (35, 80),
+    "ash": (10, 100),
+    "olive": (10, 200),
+    "plane_tree": (10, 100),
+    "mugwort": (3, 50),
+    "ragweed": (5, 20),
+    "grass": (3, 50),
+    "plantago": (3, 50),
+    "urtica": (3, 50),
+    "nettle_family": (3, 50),
+    "carpinus": (10, 100),
+    # family-EAACI (5)
+    "rye": (3, 50),
+    "oak": (10, 100),
+    "holm_oak": (10, 100),
+    "beech": (10, 100),
+    "cypress_family": (10, 100),
+    # established-no-threshold (3)
+    "chenopodium": (3, 50),
+    "juglans": (10, 100),
+    "elm": (10, 100),
+    # family-analogy (2)
+    "rumex": (3, 50),
+    "asteraceae": (3, 50),
+    # alternaria (fungal) is intentionally absent — it routes via the PI 0–4
+    # index, never the grains/m³ bucketing, so it carries no bracket.
+}
+
+
+def test_thresholds_match_locked_brackets() -> None:
+    """`_THRESHOLDS` equals the brackets recorded in the review doc, exactly.
+
+    Catches any silent drift of an operational (onset, peak) value.
+    """
+    assert _THRESHOLDS == EXPECTED_BRACKETS
+
+
+def test_only_fungal_species_has_no_bracket() -> None:
+    """Every canonical species has a grains/m³ bracket EXCEPT the fungal one
+    (alternaria), which routes through the PI 0–4 index instead."""
+    missing = set(CANONICAL_SPECIES) - set(_THRESHOLDS)
+    assert missing == {"alternaria"}
+    assert CANONICAL_SPECIES["alternaria"].thresholds is ThresholdStatus.FUNGAL
+
+
+def test_brackets_are_structurally_sane() -> None:
+    """Each bracket is 0 < onset <= peak (a usable two-step band)."""
+    for species, (onset, peak) in _THRESHOLDS.items():
+        assert 0 < onset <= peak, f"{species}: implausible bracket ({onset}, {peak})"

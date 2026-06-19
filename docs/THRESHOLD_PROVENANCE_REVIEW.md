@@ -111,3 +111,58 @@ The membership matches *none* of the three repo files (analytics.py comments / R
 - **The threshold concept itself is contested.** A recent EJACI study argues there's no threshold below which sensitive people feel nothing — symptoms rise from the first grains. The alternaria potency work shows per-spore allergen content varies up to 15× day-to-day. This is the deepest reason the tiers track *evidence provenance*, not clinical certainty.
 - **"Evidenced-weak" nulls are still regional.** Oak/holm-oak "no clinical relevance" was *in Spain*; oak is a major allergen in parts of North America. The family bracket remains the safe default.
 - **Values are NOT being changed by this review** — it's a provenance-labeling task. Acting on the ragweed/olive numbers is a separate decision with its own testing.
+
+---
+
+## Operational brackets — LOCKED to `analytics._THRESHOLDS` (test-oracle)
+
+These are the exact `(onset, peak)` grains/m³ brackets the code uses, recorded
+here as the **test oracle**: `tests/test_threshold_status.py::EXPECTED_BRACKETS`
+mirrors this section and asserts `analytics._THRESHOLDS` equals it, so a bracket
+cannot drift in code without also editing this doc + the test (three places —
+silent drift is caught).
+
+**Honest framing (rigor-on-what-exists — pollen thresholds are fuzzy):**
+- `cited` = the bracket value is genuinely derived from a per-species published
+  study (citation in the table above).
+- `class-default` = the bracket is the **family/class default** (tree `10/100`,
+  grass/herb `3/50`). The *tier* may be SPECIES_SPECIFIC (evidence that the
+  species is allergenic **exists**), but the **number itself is not
+  species-derived** — recorded honestly, not dressed up as precision.
+- `family-EAACI` = the EAACI family cutoff applies legitimately (Poaceae ≥50,
+  Fagales/Cupressaceae ≥100).
+- `analogy` / `uncited-working` = no number; the class bracket is carried as an
+  honest working bucket ("in season / above peak"), nothing more.
+
+The 6-species cited refinement (birch, alder, hazel, olive, ragweed, mugwort)
+from the change-list above HAS been applied below; the rest carry class
+defaults. `alternaria` is intentionally **absent** — it routes through the PI
+0–4 index (`_INDEX_TO_LEVEL`), never the grains/m³ bucketing, so it has no
+bracket here.
+
+| Species | (onset, peak) | Tier | Basis of the number |
+|---|---|---|---|
+| birch | (20, 100) | species-specific | **cited** — high 100 validated (Struß 2025); low 20 (2021 syst. review) |
+| alder | (45, 80) | species-specific | **cited** — Rapiejko 2007 (45 onset / 80 all-symptomatic) |
+| hazel | (35, 80) | species-specific | **cited** — Rapiejko 2007 (op. >35 / severe >80) |
+| olive | (10, 200) | species-specific | **cited** high 200 (Spanish op. scale); low 10 class-inherited |
+| ragweed | (5, 20) | species-specific | **cited** — PMC5357339/2868868 (<20; sensitive 1–5) |
+| grass | (3, 50) | species-specific | **cited** high 50 grass-anchored (EAACI Pfaar 2017); low 3 class |
+| ash | (10, 100) | species-specific | class-default (tree); cited ~18 onset refinement deferred (out of v2.2 scope) |
+| plane_tree | (10, 100) | species-specific | class-default (tree); cited Tier-2 but no single anchor strong enough |
+| mugwort | (3, 50) | species-specific | class-default (herb); evidence exists, no point cutoff |
+| plantago | (3, 50) | species-specific | class-default (herb); cited weak-allergen, no cutoff |
+| urtica | (3, 50) | species-specific | class-default (herb); cited weak-allergen, no cutoff |
+| nettle_family | (3, 50) | species-specific | class-default (herb); cited weak-allergen, no cutoff |
+| carpinus | (10, 100) | species-specific (weak) | class-default (Fagales); birch-confounded, no isolated number |
+| rye | (3, 50) | family-EAACI | family-EAACI (Poaceae ≥50) |
+| oak | (10, 100) | family-EAACI | family-EAACI (Fagales ≥100) |
+| holm_oak | (10, 100) | family-EAACI | family-EAACI (Fagales ≥100) |
+| beech | (10, 100) | family-EAACI | family-EAACI (Fagales ≥100) |
+| cypress_family | (10, 100) | family-EAACI | family-EAACI (Cupressaceae ≥100) |
+| chenopodium | (3, 50) | established-no-threshold | class-default (herb); established allergen, no number |
+| juglans | (10, 100) | established-no-threshold | class-default (tree); pecan-analogy onset only |
+| elm | (10, 100) | established-no-threshold | uncited-working (Ulmaceae not in EAACI; no number) |
+| rumex | (3, 50) | family-analogy | analogy (herb default; grass-confounded) |
+| asteraceae | (3, 50) | family-analogy | analogy (herb default; weakest row) |
+| alternaria | — (PI index) | fungal | routes via PI 0–4 index, not grains/m³ — no bracket |
