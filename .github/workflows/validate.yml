@@ -26,6 +26,3 @@ jobs:
       - uses: hacs/action@dcb30e72781db3f207d5236b861172774ab0b485 # main, pinned per oriel-dashboard (commit 2026-01-26)
         with:
           category: integration
-          # Brand assets are submitted to home-assistant/brands as a separate
-          # step when v1.0 publishes; skip the check until then.
-          ignore: brands
