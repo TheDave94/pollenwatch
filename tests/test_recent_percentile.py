@@ -11,7 +11,7 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pollenwatch.const import (
-    CONF_ALLERGENS,
+    CONF_SELECTED_SPECIES,
     CONF_SOURCES,
     DOMAIN,
     new_sources_config,
@@ -46,10 +46,10 @@ def _backfill_result(days: int, today_value: float):
 def _entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
-        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44, CONF_ALLERGENS: ["grass"]},
-        options={CONF_ALLERGENS: ["grass"], CONF_SOURCES: new_sources_config()},
+        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44, CONF_SELECTED_SPECIES: ["grass"]},
+        options={CONF_SELECTED_SPECIES: ["grass"], CONF_SOURCES: new_sources_config()},
     )
 
 

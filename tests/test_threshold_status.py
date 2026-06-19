@@ -31,7 +31,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pollenwatch.analytics import _THRESHOLDS
 from custom_components.pollenwatch.const import (
-    CONF_ALLERGENS,
+    CONF_SELECTED_SPECIES,
     CONF_SOURCES,
     DOMAIN,
     new_sources_config,
@@ -182,13 +182,13 @@ def _entry() -> MockConfigEntry:
     # the v2.2 class-error fix and the consistent threshold_status surface).
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
         title="PollenWatch (47.070, 15.440)",
         data={
             CONF_LATITUDE: 47.07,
             CONF_LONGITUDE: 15.44,
-            CONF_ALLERGENS: ["birch", "mugwort"],
+            CONF_SELECTED_SPECIES: ["birch", "mugwort"],
         },
         options={CONF_SOURCES: new_sources_config()},
     )

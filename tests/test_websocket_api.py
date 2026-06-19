@@ -67,7 +67,7 @@ def _entry(options_overrides: dict | None = None) -> MockConfigEntry:
         options.update(options_overrides)
     return MockConfigEntry(
         domain=DOMAIN,
-        version=3,
+        version=1,
         unique_id="47.0700_15.4400",
         title="PollenWatch (47.070, 15.440)",
         data={

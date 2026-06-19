@@ -30,7 +30,7 @@ from custom_components.pollenwatch.analytics import (
     level_label,
 )
 from custom_components.pollenwatch.const import (
-    CONF_ALLERGENS,
+    CONF_SELECTED_SPECIES,
     CONF_SOURCES,
     DOMAIN,
     SOURCE_DWD,
@@ -150,13 +150,13 @@ _FETCH = "custom_components.pollenwatch.sources.open_meteo.OpenMeteoSource.async
 def _entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
         title="PollenWatch (47.070, 15.440)",
         data={
             CONF_LATITUDE: 47.07,
             CONF_LONGITUDE: 15.44,
-            CONF_ALLERGENS: ["birch", "grass"],
+            CONF_SELECTED_SPECIES: ["birch", "grass"],
         },
         options={CONF_SOURCES: new_sources_config()},
     )

@@ -26,7 +26,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import (
     ALLERGENS,
     ALLOWED_LAYOUTS,
-    CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_DEFAULT_LAYOUT,
@@ -37,8 +36,8 @@ from .const import (
     CONF_SOURCES,
     CONF_STATION,
     CONF_UPDATE_INTERVAL,
-    DEFAULT_ALLERGENS,
     DEFAULT_LAYOUT,
+    DEFAULT_SELECTED_SPECIES,
     DEFAULT_SENSITIVITY,
     DEFAULT_UPDATE_INTERVAL_MIN,
     DOMAIN,
@@ -281,12 +280,10 @@ async def _async_probe_coverage(
 class PollenWatchConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the initial setup of a PollenWatch config entry."""
 
-    # v3 (v2.0 release): storage key for species selection is now
-    # CONF_SELECTED_SPECIES, not CONF_ALLERGENS. Old entries migrate
-    # losslessly via async_migrate_entry. Onboarding is now two-step:
-    # location (this step) → species (region-aware multi-select +
-    # cross-validated quick-pick toggle).
-    VERSION = 3
+    # Single config-entry schema (VERSION 1). Species selection is stored under
+    # CONF_SELECTED_SPECIES end-to-end. Onboarding is two-step: location (this
+    # step) → species (region-aware multi-select + cross-validated quick-pick).
+    VERSION = 1
 
     def __init__(self) -> None:
         # Carried between steps. Set in async_step_user; consumed in
@@ -310,7 +307,7 @@ class PollenWatchConfigFlow(ConfigFlow, domain=DOMAIN):
             # Probe with any OM-supported species — just a connectivity +
             # coverage check (OM silent-drops unknown allergens in v2+).
             error = await _async_probe_coverage(
-                self.hass, latitude, longitude, list(DEFAULT_ALLERGENS)
+                self.hass, latitude, longitude, list(DEFAULT_SELECTED_SPECIES)
             )
             if error:
                 errors["base"] = error
@@ -547,14 +544,11 @@ class PollenWatchOptionsFlow(OptionsFlow):
                     }
                 )
 
-        # v3 storage key. Falls back to legacy CONF_ALLERGENS only if the
-        # v3 key is entirely absent — explicit empty stays empty (matches
-        # the coordinator's reader; see build_coordinators for rationale).
+        # Species selection. None default so an explicit empty `[]` stays empty
+        # (matches the coordinator's reader; see build_coordinators).
         current_allergens = _entry_option(entry, CONF_SELECTED_SPECIES, None)
         if current_allergens is None:
-            current_allergens = _entry_option(
-                entry, CONF_ALLERGENS, DEFAULT_ALLERGENS
-            )
+            current_allergens = list(DEFAULT_SELECTED_SPECIES)
         current_interval = _entry_option(
             entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_MIN
         )

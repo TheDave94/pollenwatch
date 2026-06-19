@@ -14,7 +14,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pollenwatch.config_flow import CONF_ENABLE_PI, _sensitivity_field
 from custom_components.pollenwatch.const import (
-    CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_DEFAULT_LAYOUT,
@@ -40,14 +39,14 @@ _SETUP = "custom_components.pollenwatch.async_setup_entry"
 def _options_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
         data={
             CONF_LATITUDE: 47.07,
             CONF_LONGITUDE: 15.44,
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
         },
-        options={CONF_ALLERGENS: ["grass", "birch"], CONF_SOURCES: new_sources_config()},
+        options={CONF_SELECTED_SPECIES: ["grass", "birch"], CONF_SOURCES: new_sources_config()},
     )
 
 
@@ -189,7 +188,7 @@ async def test_options_flow_updates_allergens_and_interval(
         data={
             CONF_LATITUDE: 47.07,
             CONF_LONGITUDE: 15.44,
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
         },
     )
     entry.add_to_hass(hass)

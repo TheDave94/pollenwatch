@@ -16,9 +16,9 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pollenwatch.const import (
-    CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_ENABLED,
+    CONF_SELECTED_SPECIES,
     CONF_SOURCES,
     DOMAIN,
     SOURCE_GOOGLE,
@@ -62,13 +62,13 @@ def _entry() -> MockConfigEntry:
     sources[SOURCE_GOOGLE] = {CONF_ENABLED: False, CONF_API_KEY: "secret-key"}
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
         title="PollenWatch (47.070, 15.440)",
         data={
             CONF_LATITUDE: 47.07,
             CONF_LONGITUDE: 15.44,
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
         },
         options={CONF_SOURCES: sources},
     )

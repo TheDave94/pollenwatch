@@ -33,7 +33,6 @@ from .analytics import (
 )
 from .const import (
     ANALYTICS_DEVICE_NAME,
-    CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
@@ -42,7 +41,7 @@ from .const import (
     CONF_SOURCES,
     CONF_STATION,
     CONF_UPDATE_INTERVAL,
-    DEFAULT_ALLERGENS,
+    DEFAULT_SELECTED_SPECIES,
     DEFAULT_UPDATE_INTERVAL_MIN,
     DOMAIN,
     DWD_UPDATE_INTERVAL_MIN,
@@ -140,15 +139,13 @@ def build_coordinators(
     source, which maps it onto its own capabilities.
     """
     interval = _entry_option(entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_MIN)
-    # v3 storage key (CONF_SELECTED_SPECIES). Falls back to legacy
-    # CONF_ALLERGENS only if the v3 key is ENTIRELY ABSENT — explicit
-    # empty `[]` stays empty (the "selection bounds the blowup" guarantee
-    # requires honouring deliberate emptiness, not silently restoring v1
-    # defaults). Production v3 entries always have CONF_SELECTED_SPECIES;
-    # the alias-fallback is for test fixtures or un-migrated edge cases.
+    # Species selection. A None default (not DEFAULT_SELECTED_SPECIES) so an
+    # explicit empty `[]` stays empty — the "selection bounds the blowup"
+    # guarantee honours deliberate emptiness rather than silently restoring the
+    # defaults; only a genuinely-absent key falls back to the canonical set.
     allergens = _entry_option(entry, CONF_SELECTED_SPECIES, None)
     if allergens is None:
-        allergens = _entry_option(entry, CONF_ALLERGENS, DEFAULT_ALLERGENS)
+        allergens = list(DEFAULT_SELECTED_SPECIES)
     latitude = entry.data[CONF_LATITUDE]
     longitude = entry.data[CONF_LONGITUDE]
     sources_cfg = _entry_option(entry, CONF_SOURCES, {})

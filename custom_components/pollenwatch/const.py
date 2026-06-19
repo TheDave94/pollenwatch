@@ -72,14 +72,11 @@ SOURCE_ATTRIBUTIONS: Final[dict[str, str]] = {
 # Config-entry / options keys. Location uses homeassistant.const
 # CONF_LATITUDE / CONF_LONGITUDE; these are PollenWatch-specific.
 #
-# Storage key for the user's species selection. From config-entry v3 the
-# canonical key is CONF_SELECTED_SPECIES ("selected_species"); the legacy
-# CONF_ALLERGENS ("allergens") is kept as the *form-field name* (so HA's
-# strings.json translation still resolves "allergens" → "Allergens") and
-# as a defensive read fallback on un-migrated v2 entries during a race.
-# The v2→v3 migration in __init__.py renames the storage key.
+# Storage + form-field key for the user's species selection. Single canonical
+# key end-to-end (config-flow → storage → coordinator). The former legacy
+# alias CONF_ALLERGENS ("allergens") and its v2→v3 migration were removed once
+# backward-compatibility was no longer required (config-entry VERSION reset to 1).
 CONF_SELECTED_SPECIES: Final = "selected_species"
-CONF_ALLERGENS: Final = "allergens"  # legacy/form-field; removed in v2.1+
 CONF_UPDATE_INTERVAL: Final = "update_interval"  # minutes
 
 # Personal sensitivity multipliers (per species), applied to raw values to give
@@ -196,10 +193,8 @@ def new_sources_config() -> dict[str, dict[str, object]]:
     }
 
 # Defaults and guardrails.
-DEFAULT_ALLERGENS: Final[list[str]] = list(ALLERGENS)
-# v3+: same content as DEFAULT_ALLERGENS today (the canonical 6); kept under
-# the new name so v3 code reads the right symbol. Phase B+ derives this from
-# species_registry.CANONICAL_V1_SPECIES once base.ALLERGENS is retired.
+# Default species selection (the canonical 6). Single symbol; the old
+# DEFAULT_ALLERGENS alias was removed with the species-key unification.
 DEFAULT_SELECTED_SPECIES: Final[list[str]] = list(ALLERGENS)
 DEFAULT_UPDATE_INTERVAL_MIN: Final = 60
 # A free, keyless public API — never poll faster than hourly (see kickoff probe).

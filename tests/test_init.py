@@ -19,10 +19,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.pollenwatch import async_migrate_entry
 from custom_components.pollenwatch.const import (
     ATTRIBUTION_CAMS,
-    CONF_ALLERGENS,
     CONF_API_KEY,
     CONF_COUNTRY,
     CONF_ENABLED,
@@ -31,7 +29,6 @@ from custom_components.pollenwatch.const import (
     CONF_SENSITIVITY,
     CONF_SOURCES,
     CONF_STATION,
-    CONF_UPDATE_INTERVAL,
     DOMAIN,
     SOURCE_DWD,
     SOURCE_EPIN,
@@ -93,13 +90,13 @@ def _result():
 def _entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
         title="PollenWatch (47.070, 15.440)",
         data={
             CONF_LATITUDE: 47.07,
             CONF_LONGITUDE: 15.44,
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
         },
         options={CONF_SOURCES: new_sources_config()},
     )
@@ -155,7 +152,7 @@ async def test_deselecting_allergen_removes_its_entity(hass: HomeAssistant) -> N
 
         # Deselect birch via options; the entry reloads on the update listener.
         hass.config_entries.async_update_entry(
-            entry, options={CONF_ALLERGENS: ["grass"]}
+            entry, options={CONF_SELECTED_SPECIES: ["grass"]}
         )
         await hass.async_block_till_done()
 
@@ -164,142 +161,6 @@ async def test_deselecting_allergen_removes_its_entity(hass: HomeAssistant) -> N
         assert registry.async_get_entity_id("sensor", DOMAIN, grass_uid) is not None
         assert hass.states.get("sensor.pollenwatch_open_meteo_birch") is None
         assert hass.states.get("sensor.pollenwatch_open_meteo_grass") is not None
-
-
-def _v1_entry() -> MockConfigEntry:
-    """Reconstruct the live single-source v1 entry shape (the API does not
-    expose entry.data, so this mirrors what milestone-2 setup + options wrote)."""
-    return MockConfigEntry(
-        domain=DOMAIN,
-        version=1,
-        unique_id="47.0700_15.4400",
-        title="PollenWatch (47.070, 15.440)",
-        data={
-            CONF_LATITUDE: 47.07,
-            CONF_LONGITUDE: 15.44,
-            CONF_ALLERGENS: ["grass", "birch"],
-        },
-        options={CONF_ALLERGENS: ["grass", "birch"], CONF_UPDATE_INTERVAL: 60},
-    )
-
-
-async def test_migrate_v1_entry_to_v2(hass: HomeAssistant) -> None:
-    entry = _v1_entry()
-    entry.add_to_hass(hass)
-
-    with (
-        patch(_SESSION, return_value=object()),
-        patch(_FETCH, new=AsyncMock(return_value=_result())),
-    ):
-        assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-
-    # Migrated through v1 → v2 → v3 (full chain on a setup-driven load).
-    assert entry.version == 3
-    sources = entry.options[CONF_SOURCES]
-    assert sources[SOURCE_OPEN_METEO][CONF_ENABLED] is True
-    assert sources[SOURCE_POLLENINFORMATION][CONF_ENABLED] is False
-    # v2→v3 step renamed the storage key into options (where the user's
-    # editable selection lives); legacy key removed from both data and
-    # options so there's no stale dual-key state.
-    assert entry.options[CONF_SELECTED_SPECIES] == ["grass", "birch"]
-    assert "allergens" not in entry.data
-    assert "allergens" not in entry.options
-    assert entry.options[CONF_UPDATE_INTERVAL] == 60
-    # Open-Meteo keeps working through the migration.
-    assert entry.state is ConfigEntryState.LOADED
-    assert hass.states.get("sensor.pollenwatch_open_meteo_grass") is not None
-
-
-async def test_migrate_v2_entry_renames_allergens_to_selected_species(
-    hass: HomeAssistant,
-) -> None:
-    """v2→v3 migrates the storage key losslessly, removing the legacy key."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        version=2,
-        unique_id="47.0700_15.4400",
-        title="PollenWatch (47.070, 15.440)",
-        # Literal "allergens" keys — what a real v2 entry actually has.
-        data={
-            CONF_LATITUDE: 47.07,
-            CONF_LONGITUDE: 15.44,
-            "allergens": ["grass", "birch", "alder"],
-        },
-        options={
-            "allergens": ["grass", "birch", "alder"],
-            CONF_SOURCES: new_sources_config(),
-        },
-    )
-    entry.add_to_hass(hass)
-
-    assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 3
-    # Legacy literal key removed from both locations.
-    assert "allergens" not in entry.options
-    assert "allergens" not in entry.data
-    # New key present with original contents preserved exactly.
-    assert entry.options[CONF_SELECTED_SPECIES] == ["grass", "birch", "alder"]
-
-
-async def test_migrate_v2_entry_missing_allergens_uses_v1_fallback(
-    hass: HomeAssistant,
-) -> None:
-    """Defensive: v2 entry with no recoverable species list falls back to the
-    canonical 6 so existing entities aren't silently orphaned."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        version=2,
-        unique_id="47.0700_15.4400",
-        title="PollenWatch (47.070, 15.440)",
-        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44},
-        options={CONF_SOURCES: new_sources_config()},
-    )
-    entry.add_to_hass(hass)
-
-    assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 3
-    assert entry.options[CONF_SELECTED_SPECIES] == [
-        "alder", "birch", "grass", "mugwort", "olive", "ragweed",
-    ]
-
-
-async def test_migrate_is_idempotent_on_v3(hass: HomeAssistant) -> None:
-    """A v3 entry passed back through migration must not change."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        version=3,
-        unique_id="47.0700_15.4400",
-        title="PollenWatch (47.070, 15.440)",
-        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44},
-        options={
-            CONF_SELECTED_SPECIES: ["grass", "birch"],
-            CONF_SOURCES: new_sources_config(),
-        },
-    )
-    entry.add_to_hass(hass)
-    before = dict(entry.options)
-    assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 3
-    assert dict(entry.options) == before
-
-
-async def test_migrate_v4_entry_is_refused(hass: HomeAssistant) -> None:
-    """A future-version entry (e.g. user rolled back) is refused, not corrupted."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        version=4,
-        unique_id="47.0700_15.4400",
-        title="PollenWatch (47.070, 15.440)",
-        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44},
-        options={
-            CONF_SELECTED_SPECIES: ["grass"],
-            CONF_SOURCES: new_sources_config(),
-        },
-    )
-    entry.add_to_hass(hass)
-    assert await async_migrate_entry(hass, entry) is False
-    assert entry.version == 4  # untouched
 
 
 def _pi_result():
@@ -323,16 +184,16 @@ def _pi_result():
 def _two_source_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
         title="PollenWatch (47.070, 15.440)",
         data={
             CONF_LATITUDE: 47.07,
             CONF_LONGITUDE: 15.44,
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
         },
         options={
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
             CONF_SOURCES: {
                 SOURCE_OPEN_METEO: {CONF_ENABLED: True},
                 SOURCE_POLLENINFORMATION: {
@@ -378,15 +239,15 @@ async def test_two_sources_coexist(hass: HomeAssistant) -> None:
 async def test_personal_score_applies_multiplier(hass: HomeAssistant) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
         data={
             CONF_LATITUDE: 47.07,
             CONF_LONGITUDE: 15.44,
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
         },
         options={
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
             CONF_SENSITIVITY: {"grass": 1.5},  # birch defaults to 1.0
             CONF_SOURCES: new_sources_config(),
         },
@@ -482,11 +343,11 @@ def _dwd_levels_result():
 def _three_source_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="48.0000_9.0000",
-        data={CONF_LATITUDE: 48.0, CONF_LONGITUDE: 9.0, CONF_ALLERGENS: ["grass", "birch"]},
+        data={CONF_LATITUDE: 48.0, CONF_LONGITUDE: 9.0, CONF_SELECTED_SPECIES: ["grass", "birch"]},
         options={
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
             CONF_SOURCES: {
                 SOURCE_OPEN_METEO: {CONF_ENABLED: True},
                 SOURCE_POLLENINFORMATION: {
@@ -528,11 +389,15 @@ async def test_dwd_out_of_coverage_leaves_two_source_consensus_unchanged(
     # contribute NOTHING — the existing 2-source consensus is unchanged.
     entry = MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
-        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44, CONF_ALLERGENS: ["grass", "birch"]},
+        data={
+            CONF_LATITUDE: 47.07,
+            CONF_LONGITUDE: 15.44,
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
+        },
         options={
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
             CONF_SOURCES: {
                 SOURCE_OPEN_METEO: {CONF_ENABLED: True},
                 SOURCE_POLLENINFORMATION: {
@@ -569,11 +434,15 @@ def _graz_entry_with_source(source_key: str) -> MockConfigEntry:
     the extra source must contribute nothing."""
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
-        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44, CONF_ALLERGENS: ["grass", "birch"]},
+        data={
+            CONF_LATITUDE: 47.07,
+            CONF_LONGITUDE: 15.44,
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
+        },
         options={
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
             CONF_SOURCES: {
                 SOURCE_OPEN_METEO: {CONF_ENABLED: True},
                 SOURCE_POLLENINFORMATION: {
@@ -667,11 +536,15 @@ def _google_entry() -> MockConfigEntry:
     # Graz: open_meteo + polleninformation + Google all cover it.
     return MockConfigEntry(
         domain=DOMAIN,
-        version=2,
+        version=1,
         unique_id="47.0700_15.4400",
-        data={CONF_LATITUDE: 47.07, CONF_LONGITUDE: 15.44, CONF_ALLERGENS: ["grass", "birch"]},
+        data={
+            CONF_LATITUDE: 47.07,
+            CONF_LONGITUDE: 15.44,
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
+        },
         options={
-            CONF_ALLERGENS: ["grass", "birch"],
+            CONF_SELECTED_SPECIES: ["grass", "birch"],
             CONF_SOURCES: {
                 SOURCE_OPEN_METEO: {CONF_ENABLED: True},
                 SOURCE_POLLENINFORMATION: {
