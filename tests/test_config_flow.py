@@ -375,3 +375,46 @@ async def test_options_pi_requires_country_and_key(hass: HomeAssistant) -> None:
         CONF_COUNTRY: "country_required",
         CONF_API_KEY: "api_key_required",
     }
+
+
+def _suggested_values(schema: vol.Schema) -> dict:
+    """Field name → suggested_value the re-rendered form carries."""
+    out = {}
+    for marker in schema.schema:
+        desc = getattr(marker, "description", None) or {}
+        if "suggested_value" in desc:
+            out[marker.schema] = desc["suggested_value"]
+    return out
+
+
+async def test_options_flow_preserves_input_on_error(hass: HomeAssistant) -> None:
+    """On an error re-render, the options form keeps what the user just
+    submitted rather than snapping back to the saved entry state.
+
+    Regression guard for the input-reset bug: the saved entry has PI disabled,
+    so a surviving ``CONF_ENABLE_PI: True`` (+ country/key/interval/species)
+    proves the form re-seeds from ``user_input``, not from the entry.
+    """
+    entry = _options_entry()  # PI disabled in the saved options
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    submitted = {
+        CONF_SELECTED_SPECIES: ["grass"],
+        CONF_UPDATE_INTERVAL: 90,
+        CONF_ENABLE_PI: True,
+        CONF_COUNTRY: "AT",
+        CONF_API_KEY: "secret-key",
+    }
+    with patch(_PROBE_PI, return_value="out_of_coverage"):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], submitted,
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "out_of_coverage"}
+    suggested = _suggested_values(result["data_schema"])
+    assert suggested[CONF_ENABLE_PI] is True
+    assert suggested[CONF_COUNTRY] == "AT"
+    assert suggested[CONF_API_KEY] == "secret-key"
+    assert suggested[CONF_UPDATE_INTERVAL] == 90
+    assert suggested[CONF_SELECTED_SPECIES] == ["grass"]

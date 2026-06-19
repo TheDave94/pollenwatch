@@ -332,6 +332,10 @@ class PollenWatchConfigFlow(ConfigFlow, domain=DOMAIN):
                 ),
             }
         )
+        # On an error re-render, re-seed the form with what the user just
+        # submitted instead of resetting to defaults (matches the AirWatch fix).
+        if user_input is not None:
+            schema = self.add_suggested_values_to_schema(schema, user_input)
         return self.async_show_form(
             step_id="user", data_schema=schema, errors=errors
         )
@@ -385,6 +389,10 @@ class PollenWatchConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_QUICK_PICK_CORE, default=False,
             ): selector.BooleanSelector(),
         })
+        # Preserve the user's selection (and quick-pick toggle) on an error
+        # re-render instead of snapping back to the region defaults.
+        if user_input is not None:
+            schema = self.add_suggested_values_to_schema(schema, user_input)
         return self.async_show_form(
             step_id="species",
             data_schema=schema,
@@ -614,9 +622,15 @@ class PollenWatchOptionsFlow(OptionsFlow):
                     default=current_sensitivity.get(species, DEFAULT_SENSITIVITY),
                 )
             ] = _SENSITIVITY_SELECTOR
+        schema = vol.Schema(schema_dict)
+        # The big options form (5 sources, API keys, region, per-species
+        # sensitivity) is where losing input on a validation error hurts most —
+        # re-seed it with the user's submission on an error re-render.
+        if user_input is not None:
+            schema = self.add_suggested_values_to_schema(schema, user_input)
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(schema_dict),
+            data_schema=schema,
             errors=errors,
             description_placeholders={
                 "ms_station": _station_label(
