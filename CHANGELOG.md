@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/TheDave94/pollenwatch/compare/v3.0.0...v3.0.1) (2026-06-19)
+
+
+### Bug Fixes
+
+* **docs:** correct README to match shipped v3.0.0 ([237e8c3](https://github.com/TheDave94/pollenwatch/commit/237e8c34596676e6bc793192e116c6ef58632748))
+
 ## [3.0.0](https://github.com/TheDave94/pollenwatch/compare/v2.4.0...v3.0.0) (2026-06-19)
 
 
