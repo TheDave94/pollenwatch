@@ -1,27 +1,32 @@
 {
-  "_doc": "The baseline pollenwatch version the cleanroom test installs FIRST, before upgrading to HEAD. Default is v1.3.0 — the last released version before the v3 schema migration. Override with --baseline <tag> for smoke runs or future baselines.",
+  "_doc": "The baseline pollenwatch version the cleanroom test installs FIRST, before upgrading to HEAD. Default is v3.0.0 — the first release of the RESET schema (config-entry VERSION=1, unified 'selected_species' key, async_migrate_entry removed). The no-loss gate only holds WITHIN the same schema generation, so the baseline must stay >= v3.0.0. Override with --baseline <tag> for smoke runs or future baselines.",
 
-  "default_baseline": "v1.3.0",
+  "default_baseline": "v3.0.0",
 
   "versions": {
-    "v1.3.0": {
-      "flow_version": 2,
-      "species_field": "allergens",
-      "notes": "Last v1.x release. Config-entry VERSION=2; flow field is the legacy 'allergens' key. Migration to HEAD will run v2→v3 (renames allergens → selected_species in options)."
-    },
-    "v2.0.0": {
+    "v3.0.0": {
       "flow_version": 3,
       "species_field": "selected_species",
-      "notes": "First v3-schema release. VERSION=3. Config-flow is TWO-step (user→species). Migration target for v1.x baselines."
+      "notes": "Schema RESET release. NOTE: 'flow_version' here is the config-FLOW SHAPE the cleanroom harness drives (ha_flow.py branches <=2 = single-step 'allergens', >=3 = TWO-step user→species with 'selected_species') — NOT the config-entry storage VERSION. v3.0.0 reset the storage VERSION to 1 (removed the v1→v2→v3 migration chain + the legacy 'allergens' alias) but KEPT the two-step selected_species flow shape, so flow_version stays 3. First release of the current schema generation — the correct cleanroom baseline going forward."
     },
     "v2.1.0": {
       "flow_version": 3,
       "species_field": "selected_species",
-      "notes": "HEAD as of 2026-05-31 (authoritative level attribute + silver-rule cleanup + full entity translations). VERSION=3, same TWO-step flow shape as v2.0.0. Default smoke target."
+      "notes": "PRE-RESET (historical). VERSION=3, TWO-step flow. Will NOT upgrade cleanly to v3.0.0+ — the v3.0.0 breaking change removed migration, so a v2.x entry (version 3) cannot load on VERSION=1 code. Do not use as a no-loss baseline."
+    },
+    "v2.0.0": {
+      "flow_version": 3,
+      "species_field": "selected_species",
+      "notes": "PRE-RESET (historical). First v3-schema release, VERSION=3. Same caveat as v2.1.0 — not a valid baseline for v3.0.0+."
+    },
+    "v1.3.0": {
+      "flow_version": 2,
+      "species_field": "allergens",
+      "notes": "PRE-RESET (historical). Last v1.x release, VERSION=2, legacy 'allergens' key. Not a valid baseline for v3.0.0+ (the migration that bridged it was removed in v3.0.0)."
     }
   },
 
   "head_flow_version": 3,
 
-  "_when_to_update": "Add a new entry under 'versions' when a new release is tagged AND its flow VERSION or species field changed. Bootstrap errors loudly on unknown baseline tag. Don't change 'default_baseline' without a deliberate reason — it's what 'make cleanroom-pretag' uses with no override."
+  "_when_to_update": "Add a new entry under 'versions' when a new release is tagged AND its flow VERSION or species field changed. Bootstrap errors loudly on unknown baseline tag. Keep 'default_baseline' on the latest release of the CURRENT schema generation (>= v3.0.0); only bump it across another deliberate breaking schema change."
 }
