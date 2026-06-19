@@ -365,7 +365,7 @@ EXPECTED_BRACKETS: dict[str, tuple[float, float]] = {
     "birch": (20, 100),
     "alder": (45, 80),
     "hazel": (35, 80),
-    "ash": (10, 100),
+    "ash": (18, 100),
     "olive": (10, 200),
     "plane_tree": (10, 100),
     "mugwort": (3, 50),

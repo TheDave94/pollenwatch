@@ -148,7 +148,7 @@ bracket here.
 | olive | (10, 200) | species-specific | **cited** high 200 (Spanish op. scale); low 10 class-inherited |
 | ragweed | (5, 20) | species-specific | **cited** — PMC5357339/2868868 (<20; sensitive 1–5) |
 | grass | (3, 50) | species-specific | **cited** high 50 grass-anchored (EAACI Pfaar 2017); low 3 class |
-| ash | (10, 100) | species-specific | class-default (tree); cited ~18 onset refinement deferred (out of v2.2 scope) |
+| ash | (18, 100) | species-specific | **cited** low 18 (2021 Aerobiologia syst. review, 18–28 grains/m³ ↑doctor visits — strongest evidence in the set); peak 100 class-default (Fagales) |
 | plane_tree | (10, 100) | species-specific | class-default (tree); cited Tier-2 but no single anchor strong enough |
 | mugwort | (3, 50) | species-specific | class-default (herb); evidence exists, no point cutoff |
 | plantago | (3, 50) | species-specific | class-default (herb); cited weak-allergen, no cutoff |

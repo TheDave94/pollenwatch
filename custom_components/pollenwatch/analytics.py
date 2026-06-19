@@ -46,13 +46,12 @@ _THRESHOLDS: dict[str, tuple[float, float]] = {
     # (Rapiejko 2007 PMC4996891; Kraków study). Same per-species-over-family
     # reasoning as alder.
     "hazel": (35, 80),
-    # ash: SPECIES_SPECIFIC label in the registry — 2021 Aerobiologia
-    # systematic review documents 18–28 grains/m³ ↑doctor visits (strongest
-    # single evidence in the 24-species set). Numeric refinement to ~18
-    # onset was OUT OF SCOPE for v2.2 (the approved 6-species change list
-    # was ragweed/olive/birch/alder/hazel/mugwort). Tracked for a future
-    # release: see the FINAL provenance review for the cited value.
-    "ash": (10, 100),
+    # ash: best-evidenced species in the set — 2021 Aerobiologia systematic
+    # review documents 18–28 grains/m³ ↑doctor visits. Onset refined 10→18 to
+    # the cited low (the review's "Refine: low ~18"); peak 100 stays the
+    # Fagales class default (no cited peak number for ash). See
+    # THRESHOLD_PROVENANCE_REVIEW.md "Operational brackets".
+    "ash": (18, 100),
     # olive: regional Spanish operational scale low 1–50 / mod 51–200 /
     # high >200 (PMC7349006); single-study cutoff 162 (Sciencedirect
     # S1081120610010537); monosensitized cohort ~400 (PubMed 10394105).
