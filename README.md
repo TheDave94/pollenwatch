@@ -17,18 +17,24 @@ provider; PollenWatch instead **combines independent sources** and adds a
 > **PollenWatch is a personal project shared publicly.** Stable means the
 > maintainer relies on it daily. It ships a bundled Lovelace severity-gauge
 > card that is auto-registered on install — one HACS install delivers both.
-> v2.0 expands tracked species from the original 6 to **24 canonical species
-> across trees, grasses, herbs and spores**; you pick which ones to materialize
-> as entities at setup (preselected from your country) and can change the
-> selection any time in **Options**. See **[Known limitations](#known-limitations)**
-> below for honest disclosure of the open items.
->
-> **Existing v1.x installs upgrade losslessly:** the migration renames the
-> stored allergen key, preserves every entity_id, and does not change your
-> selection. No action required on your part.
+> PollenWatch tracks **24 canonical species across trees, grasses, herbs and one
+> spore**; you pick which ones to materialize as entities at setup (preselected
+> from your country) and can change the selection any time in **Options**. See
+> **[Known limitations](#known-limitations)** below for honest disclosure of the
+> open items.
 >
 > Minimum Home Assistant **2024.11.0** (see
 > [HA_COMPATIBILITY.md](HA_COMPATIBILITY.md) for the API audit).
+
+> [!IMPORTANT]
+> **Upgrading from PollenWatch 1.x or 2.x is a breaking change.** Version 3.0
+> reset the config-entry schema and removed the old automatic migration, so an
+> existing pre-3.0 entry will **not** load on 3.0+. After updating, delete the
+> PollenWatch integration entry and add it again to reconfigure: re-selecting the
+> same species and sources reclaims the same `entity_id`s (existing dashboards
+> keep working), but you will need to re-enter any source API keys
+> (polleninformation, Google) and per-species sensitivity settings. **Fresh
+> installs are unaffected.**
 
 ## Sources
 
@@ -199,18 +205,16 @@ single-source mode — desaturated, with an explicit "single source" label, so t
 honesty gradient is visible at a glance). The 3-level scale itself
 (`none`/`low`/`high`) and its grains/m³ boundaries are sourced from
 EAACI/Pfaar position papers and used by CAMS/Climate-ADAPT (see
-[ANALYTICS.md](ANALYTICS.md)). v2.2 lands the per-species evidence-tier
-review from [#3](https://github.com/TheDave94/pollenwatch/issues/3):
-every raw and consensus sensor now carries a `threshold_status` attribute
-classifying the species into one of 5 tiers — `species_specific` (peer-reviewed
-per-species cutoff exists; 13 species), `family_eaaci` (EAACI's actual family
-group, no species refinement; 5 species), `established_no_threshold`
-(characterised allergen but no published numeric cutoff, working bracket
-carried; 3 species), `family_analogy` (analogy-only, weakest; 2 species), and
-`fungal` (Alternaria, separate evidence base). v2.2 also refines 6 numeric
-brackets per the same review (ragweed 5/20, olive 10/200, birch 20/100, alder
-45/80, hazel 35/80, mugwort 3/50 — see the v2.2 release notes for the cited
-basis per species).
+[ANALYTICS.md](ANALYTICS.md)). Every raw and consensus sensor carries a
+`threshold_status` attribute classifying the species into one of 5 evidence
+tiers — `species_specific` (peer-reviewed per-species cutoff exists; 13 species),
+`family_eaaci` (EAACI's actual family group, no species refinement; 5 species),
+`established_no_threshold` (characterised allergen but no published numeric
+cutoff, working bracket carried; 3 species), `family_analogy` (analogy-only,
+weakest; 2 species), and `fungal` (Alternaria, separate evidence base). Six
+numeric brackets use refined per-species values (ragweed 5/20, olive 10/200,
+birch 20/100, alder 45/80, hazel 35/80, mugwort 3/50) — cited basis per species
+in [ANALYTICS.md](ANALYTICS.md).
 
 ## Dashboard card
 
@@ -221,7 +225,7 @@ dashboard follows it. Per-card YAML overrides are supported for power users.
 
 | Layout | What it shows | Best for |
 | --- | --- | --- |
-| **gauge** | One species, full categorical gauge + per-source breakdown on click | Single-allergy "is it bad right now?" view; the original v1.x card |
+| **gauge** | One species, full categorical gauge + per-source breakdown on click | Single-allergy "is it bad right now?" view |
 | **bars** | One row per species, severity-tinted fill bar + level word | Flagship multi-species overview — your whole allergy picture in one card |
 | **compact** | Dense dot-grid, multi-column | Many species (8+); maximum density |
 | **tiles** | Severity-tinted icon + name + level, tile grid | Visual scan; mirrors a tile-style dashboard aesthetic |
@@ -268,7 +272,7 @@ reading **never** visually resembles a safe-low one ("gray, never green").
 The `mixed` state uses a 45° hatch in the overview layouts, drawn consistently
 across bars/compact/tiles so it reads the same wherever it appears.
 
-### Provenance marker (v2.3+)
+### Provenance marker
 
 Every row and every gauge carries a small marker next to its level word
 indicating where the underlying threshold comes from: peer-reviewed
@@ -334,7 +338,7 @@ maintainer uses daily.
   looks off.
 - **Per-species threshold-evidence tiers are now classified** but the
   underlying number is *evidence-graded, not certainty-graded*
-  ([#3](https://github.com/TheDave94/pollenwatch/issues/3), v2.2 review).
+  ([#3](https://github.com/TheDave94/pollenwatch/issues/3)).
   The 3-level scale (`none`/`low`/`high`) and its grains/m³ boundaries are
   EAACI/Pfaar-sourced and CAMS/Climate-ADAPT-used. Per-species evidence sits
   in 5 tiers exposed as the `threshold_status` attribute on every raw and
