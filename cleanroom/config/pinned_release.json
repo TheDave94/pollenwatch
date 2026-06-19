@@ -5,9 +5,9 @@
 
   "versions": {
     "v3.0.0": {
-      "flow_version": 1,
+      "flow_version": 3,
       "species_field": "selected_species",
-      "notes": "Schema RESET release. Config-entry VERSION=1; the v1→v2→v3 migration chain and the legacy 'allergens' alias were removed (single 'selected_species' key end-to-end). First release of the current schema generation — the correct cleanroom baseline going forward."
+      "notes": "Schema RESET release. NOTE: 'flow_version' here is the config-FLOW SHAPE the cleanroom harness drives (ha_flow.py branches <=2 = single-step 'allergens', >=3 = TWO-step user→species with 'selected_species') — NOT the config-entry storage VERSION. v3.0.0 reset the storage VERSION to 1 (removed the v1→v2→v3 migration chain + the legacy 'allergens' alias) but KEPT the two-step selected_species flow shape, so flow_version stays 3. First release of the current schema generation — the correct cleanroom baseline going forward."
     },
     "v2.1.0": {
       "flow_version": 3,
@@ -26,7 +26,7 @@
     }
   },
 
-  "head_flow_version": 1,
+  "head_flow_version": 3,
 
   "_when_to_update": "Add a new entry under 'versions' when a new release is tagged AND its flow VERSION or species field changed. Bootstrap errors loudly on unknown baseline tag. Keep 'default_baseline' on the latest release of the CURRENT schema generation (>= v3.0.0); only bump it across another deliberate breaking schema change."
 }
