@@ -97,7 +97,9 @@
 
   // Static SVG template: all elements rendered once, CSS drives state.
   function gaugeSvg() {
-    const parts = ['<svg class="pwgauge state-unknown" viewBox="0 0 120 92" xmlns="http://www.w3.org/2000/svg">'];
+    // role="img" + a <title> make the dial a single labelled image for screen
+    // readers; _renderGauge sets the aria-label + title text per state.
+    const parts = ['<svg class="pwgauge state-unknown" viewBox="0 0 120 92" role="img" xmlns="http://www.w3.org/2000/svg"><title data-gauge-title></title>'];
     // Color segments
     SEG_BOUNDS.forEach((b, i) => {
       parts.push(`<path class="seg seg-${i}" d="${arcPath(b[0], b[1], R)}" stroke="${SEG_COLORS[i]}" stroke-width="${W}" fill="none" stroke-linecap="round"/>`);
@@ -233,13 +235,13 @@
   // ── Card CSS ──────────────────────────────────────────────────────
   const CARD_CSS = `
     :host { display: block; }
+    /* The surface (background, border, radius, shadow) is owned by <ha-card>
+       so it matches the user's theme — the card adds only padding + a
+       theme-derived base text colour. Identity lives in the gauge/ramp/icons,
+       not the chrome (see brand/HA_CARD_REVIEW.md on the AirWatch sibling). */
     .card {
-      background: var(--ha-card-background, var(--card-background-color, white));
-      border: 1px solid var(--divider-color, #ECE4D6);
-      border-radius: var(--ha-card-border-radius, 16px);
       padding: 16px;
       color: var(--primary-text-color, #2A3540);
-      box-shadow: var(--ha-card-box-shadow, none);
     }
     .header { display: flex; align-items: center; gap: 10px; }
     .species-icon { width: 28px; height: 28px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
@@ -974,6 +976,23 @@
 
     getCardSize() { return 4; }
 
+    // Sections-view sizing (12-column grid). The gauge layout is a compact
+    // single-species card; the overview layouts scale their height with the
+    // species count. getCardSize above stays the masonry fallback.
+    getGridOptions() {
+      const layout = this._resolvedLayout || LAYOUT_GAUGE;
+      if (layout === LAYOUT_GAUGE) {
+        return { columns: 12, min_columns: 6, rows: 5, min_rows: 4 };
+      }
+      const n = (this._resolveSpecies() || []).length || 6;
+      return {
+        columns: 12,
+        min_columns: 6,
+        rows: Math.max(4, Math.min(14, 2 + Math.ceil(n * 0.7))),
+        min_rows: 4,
+      };
+    }
+
     static getStubConfig() {
       return { type: 'custom:pollenwatch-card', species: 'grass' };
     }
@@ -1074,6 +1093,11 @@
       // Gauge state
       const gauge = this.shadowRoot.querySelector('.pwgauge');
       gauge.setAttribute('class', `pwgauge state-${state}`);
+      // a11y: summarise the reading on the dial (role="img" set in template).
+      const gaugeLabel = `${cap(species)} pollen: ${recipe.label}`;
+      gauge.setAttribute('aria-label', gaugeLabel);
+      const gaugeTitle = gauge.querySelector('[data-gauge-title]');
+      if (gaugeTitle) gaugeTitle.textContent = gaugeLabel;
 
       // Reading
       const reading = this.shadowRoot.querySelector('[data-reading]');
