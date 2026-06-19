@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.0.0](https://github.com/TheDave94/pollenwatch/compare/v2.4.0...v3.0.0) (2026-06-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* collapse config-entry migration + unify the species key
+
+### Features
+
+* **diagnostics:** implement config-entry diagnostics (location + key redaction) ([d18a788](https://github.com/TheDave94/pollenwatch/commit/d18a7880440798228b0c42543a74e14bdbd9b067))
+* **thresholds:** refine ash onset 10→18 (cited) ([b10cf20](https://github.com/TheDave94/pollenwatch/commit/b10cf20fa99b9aef8e19d78582a3ea7eb3939ebf))
+
+
+### Bug Fixes
+
+* **config_flow:** preserve user input on error re-render ([52b1b9f](https://github.com/TheDave94/pollenwatch/commit/52b1b9f094f8e756dff5069a5a1c3725ea7918d9))
+* **sensor:** guard empty current_time in forecast slice ([5257d67](https://github.com/TheDave94/pollenwatch/commit/5257d67ff93eed2293f3818f1f966362b12a0e88))
+
+
+### Code Refactoring
+
+* collapse config-entry migration + unify the species key ([56829bf](https://github.com/TheDave94/pollenwatch/commit/56829bf3ee36b6b2e8d5a174765251d04b9fc18b))
+
 ## [2.4.0](https://github.com/TheDave94/pollenwatch/compare/v2.3.0...v2.4.0) (2026-06-02)
 
 
