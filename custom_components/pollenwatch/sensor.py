@@ -220,7 +220,15 @@ def _forecast_attr(
     The series now spans ~92 past days (for recent_percentile), so the forecast
     must be the today-onward slice — not the earliest days. Peaks (not means)
     drive allergic reactions; the partially-null 5th day is dropped via max_days.
+
+    ``today`` anchors "today". If it's empty (the source omitted current_time —
+    shouldn't happen for an OK Open-Meteo result, but defensive), return an
+    empty forecast rather than silently emitting the oldest backfill days as if
+    they were the forecast: ``date >= ""`` is true for every ISO date, which
+    would dump the whole ~92-day window. (Matches the AirWatch fix.)
     """
+    if not today:
+        return []
     return [
         {"date": date, "value": peak}
         for date, peak in daily_peaks(times, values)
