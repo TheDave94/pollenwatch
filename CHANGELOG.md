@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/TheDave94/pollenwatch/compare/v3.0.1...v3.0.2) (2026-06-20)
+
+
+### Documentation
+
+* reusable screenshot harness + layout/state gallery ([223bf84](https://github.com/TheDave94/pollenwatch/commit/223bf84736cffa0d84f8252cf01756b2bdf2d92b))
+
 ## [3.0.1](https://github.com/TheDave94/pollenwatch/compare/v3.0.0...v3.0.1) (2026-06-19)
 
 
