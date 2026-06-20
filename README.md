@@ -223,12 +223,28 @@ resource on install — no manual resource step. It offers **four layouts** —
 pick one in **Options → Default card layout**, and every card on every
 dashboard follows it. Per-card YAML overrides are supported for power users.
 
+> Using the [Oriel dashboard strategy](https://github.com/TheDave94/oriel-dashboard)?
+> It **auto-detects PollenWatch** and renders a first-party pollen card + badges
+> automatically — no card configuration needed.
+
 | Layout | What it shows | Best for |
 | --- | --- | --- |
 | **gauge** | One species, full categorical gauge + per-source breakdown on click | Single-allergy "is it bad right now?" view |
 | **bars** | One row per species, severity-tinted fill bar + level word | Flagship multi-species overview — your whole allergy picture in one card |
 | **compact** | Dense dot-grid, multi-column | Many species (8+); maximum density |
 | **tiles** | Severity-tinted icon + name + level, tile grid | Visual scan; mirrors a tile-style dashboard aesthetic |
+
+The same data in each layout:
+
+| Bars — flagship multi-species overview | Compact — dense dot-grid |
+|---|---|
+| ![PollenWatch bars layout](docs/images/bars-light.png) | ![PollenWatch compact layout](docs/images/compact-light.png) |
+| Tiles — severity-tinted icon grid | Gauge — single species + per-source breakdown |
+| ![PollenWatch tiles layout](docs/images/tiles-light.png) | ![PollenWatch gauge layout](docs/images/gauge-light.png) |
+
+Light and dark themes are both supported:
+
+![PollenWatch bars layout, dark theme](docs/images/bars-dark.png)
 
 ### Minimal YAML
 
@@ -270,7 +286,12 @@ Every layout uses the same six categorical states — `none`, `low`, `high`,
 missing data (gray, no severity colour, no needle in the gauge). An empty
 reading **never** visually resembles a safe-low one ("gray, never green").
 The `mixed` state uses a 45° hatch in the overview layouts, drawn consistently
-across bars/compact/tiles so it reads the same wherever it appears.
+across bars/compact/tiles so it reads the same wherever it appears. In the bars
+gallery above, Birch reads **Sources disagree** (the 45° hatch) and Hazel reads
+**Unknown** (gray, no fill) — a degraded single-source reading that never poses
+as a safe low. The same fail-safe in the gauge:
+
+![PollenWatch gauge — unknown/degraded state: gray, no needle, never a fake green](docs/images/gauge-unknown-light.png)
 
 ### Provenance marker
 
@@ -288,6 +309,8 @@ In `gauge` layout, clicking the body opens the per-source breakdown — each
 source's native reading (grains/m³, DWD's 7-point string, polleninformation's
 0–4 index, Google's UPI 0–5). In the overview layouts, clicking any row /
 tile opens HA's more-info dialog for that species' consensus sensor.
+
+![PollenWatch gauge expanded — per-source breakdown on a mixed reading](docs/images/gauge-mixed-light.png)
 
 The card adapts to HA's light + dark themes; the brand severity ramp stays
 constant per `brand/GAUGE_SPEC.md`.
@@ -366,6 +389,19 @@ maintainer uses daily.
 
 Brand identity, design tokens, the gauge spec and reference state SVGs live in
 [`brand/`](brand/) — the design source-of-truth.
+
+## Related projects
+
+PollenWatch works on its own, and is also deliberately built to work alongside:
+
+- **[AirWatch](https://github.com/TheDave94/airwatch)** — a companion outdoor
+  **air-quality** integration that shares PollenWatch's architecture (multi-source
+  aggregation, cross-source consensus/divergence, a bundled severity card).
+  AirWatch's card was derived from PollenWatch's design, so the two read
+  consistently side by side.
+- **[Oriel Dashboard](https://github.com/TheDave94/oriel-dashboard)** — a Lovelace
+  dashboard strategy that auto-detects PollenWatch and renders it as a first-party
+  pollen card + badges, with no manual card configuration.
 
 ## License
 
