@@ -1,9 +1,16 @@
 """Binary sensors for PollenWatch — cross-source divergence.
 
-divergence is the boolean companion to consensus's "mixed": on when the sources
-disagree by more than one level for a species. Lives under the same "PollenWatch
-Analytics" device as consensus, and is unavailable when fewer than two sources
-currently cover the species (it never flags divergence from a single source).
+divergence is the boolean companion to the consensus *level*: on whenever the
+sources are NOT unanimous for a species (any disagreement, spread >= 1) — not
+just the spread-of-two-or-more "mixed" case. This makes the consensus/divergence
+pair honest: a {1,1,2} reading reports consensus "high" (take-the-higher) AND
+divergence on, instead of a minority high masquerading as confident consensus
+(issue #1; semantics widened 2026-06-29 from live 3-5 source data). Lives under
+the same "PollenWatch Analytics" device as consensus, and is unavailable when
+fewer than two sources currently cover the species (it never flags divergence
+from a single source). The `spread` attribute (max-min of the per-source levels)
+grades the disagreement: 1 = adjacent (a level reported with take-the-higher),
+>=2 = "mixed" (no single level).
 """
 
 from __future__ import annotations
@@ -31,6 +38,7 @@ from .coordinator import (
 PARALLEL_UPDATES = 0
 
 ATTR_SOURCE_LEVELS = "source_levels"
+ATTR_SPREAD = "spread"
 
 
 async def async_setup_entry(
@@ -59,7 +67,7 @@ async def async_setup_entry(
 class DivergenceSensor(
     CoordinatorEntity[PollenWatchAnalyticsCoordinator], BinarySensorEntity
 ):
-    """True when sources disagree by more than one level for a species."""
+    """True when the sources are not unanimous for a species (any spread >= 1)."""
 
     # Device-scoped entity ID (see ConsensusSensor): HA 2026.5 prefixes with the
     # device slug -> binary_sensor.pollenwatch_analytics_<species>_divergence.
@@ -105,4 +113,8 @@ class DivergenceSensor(
         result = self._result()
         if result is None:
             return None
-        return {ATTR_SOURCE_LEVELS: result.source_levels}
+        levels = result.source_levels.values()
+        # Degree of disagreement: 1 = adjacent (a level is still reported via
+        # take-the-higher), >=2 = "mixed" (no single level). 0 when unanimous.
+        spread = (max(levels) - min(levels)) if levels else 0
+        return {ATTR_SOURCE_LEVELS: result.source_levels, ATTR_SPREAD: spread}

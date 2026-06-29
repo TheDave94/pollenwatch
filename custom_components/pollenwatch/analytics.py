@@ -404,7 +404,8 @@ class ConsensusResult:
 
     state: str | None        # one of CONSENSUS_OPTIONS, or None if 0 sources
     level: int | None        # 0/1/2 when single or agreed; None for mixed/0
-    diverged: bool           # True only in the "mixed" case (levels differ by >1)
+    diverged: bool           # >=2 sources and NOT unanimous (any spread >=1);
+                             # superset of "mixed". See consensus() / issue #1.
     source_levels: dict[str, int]  # contributing per-source levels
     source_count: int        # len(source_levels) — how many contributed now
     max_possible: int        # global ceiling from species_registry
@@ -442,14 +443,28 @@ def consensus(levels: dict[str, int], max_possible: int = 0) -> ConsensusResult:
             1, max_possible,
         )
     values = list(source_levels.values())
-    if max(values) - min(values) > 1:
+    spread = max(values) - min(values)
+    # Divergence = the sources are NOT unanimous. Honest companion to the
+    # consensus *level*: on whenever >=2 sources disagree at all (spread >= 1),
+    # including the spread-1 case where take-the-higher silently lets a minority
+    # set the level (issue #1: {1,1,2} -> "high" must not read as confident
+    # consensus). A strict superset of the "mixed" state below. The earlier
+    # ">1" threshold under-flagged; resolved 2026-06-29 from 24 days of live
+    # 3-5 source data (see ANALYTICS.md).
+    diverged = spread >= 1
+    if spread > 1:
+        # Too split to name a single level -> the categorical "mixed" state.
         return ConsensusResult(
-            CONSENSUS_MIXED, None, True, source_levels,
+            CONSENSUS_MIXED, None, diverged, source_levels,
             source_count, max_possible,
         )
-    level = max(values)  # take-the-higher on equal/adjacent
+    # Equal (spread 0) or adjacent (spread 1): report a level, take-the-higher
+    # (deliberate health-conservative bias — unchanged). When adjacent, the
+    # level is reported AND diverged is True, so the pair reads "high, but
+    # sources disagree" rather than a falsely-confident "high".
+    level = max(values)
     return ConsensusResult(
-        _LEVEL_TO_CONSENSUS[level], level, False, source_levels,
+        _LEVEL_TO_CONSENSUS[level], level, diverged, source_levels,
         source_count, max_possible,
     )
 

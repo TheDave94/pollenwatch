@@ -211,8 +211,37 @@ health-conservative choice** — round an allergy sufferer toward the more cauti
 reading, not away — **not** a statistical necessity.
 
 **divergence** (binary sensor, device_class problem) is the boolean companion to
-`mixed`: on when source levels differ by **>1**. The ">1" threshold is tunable
-(see REVIEW_QUEUE) once we observe how often it fires on real dual-source data.
+the consensus *level*: on whenever the sources are **not unanimous** (any spread
+`>= 1`), **not** just the spread-`>1` `mixed` case. The binary sensor carries a
+`spread` attribute (max−min of the per-source levels) that grades the
+disagreement: `1` = adjacent (a level is still reported via take-the-higher),
+`>=2` = `mixed` (no single level).
+
+This is the resolution of **issue #1** (the `{1,1,2}` wart). With take-the-higher,
+a minority can pull the consensus *level* up (`{1,1,2}` → `high`); under the old
+`>1` divergence threshold that reading carried divergence **off**, so a minority
+high masqueraded as confident consensus. Flagging any non-unanimity makes the
+pair honest: consensus still reports the cautious level, and divergence says "but
+the sources don't all agree." The consensus *state* is unchanged — `mixed` still
+means spread `>1`, and take-the-higher still names the level for spread `<=1`.
+
+**Why widen `>1` → `>=1` rather than the alternatives** (decided 2026-06-29 from
+24 days of live 3–5 source data, 453 multi-source readings via the Hermes
+snapshot pipeline → `~/.hermes/state/pollenwatch-watch/snapshots.csv`):
+
+- *Majority/mode for the level* was rejected — it throws away the
+  health-conservative bias (would report `none` over a credible lone `low`).
+  take-the-higher is a locked decision; the fix belongs in the confidence signal,
+  not the level.
+- The data showed the minority-pull-up pattern is **frequent** (42% of
+  multi-source readings) but its dominant shape is **benign** — one source
+  (systematically Google, occasionally ePIN) reading `low` while the others read
+  `none`. That *is* genuine non-unanimity and is now flagged; the trade-off is a
+  higher base divergence rate (≈2% → ≈64% of multi-source readings over the
+  sample window), accepted as the honest signal. The `spread` attribute lets a
+  card/automation suppress the mild spread-`1` case if it wants to.
+- The truly alarming shape (a *lone* source pulling consensus to `high`) was rare
+  (2 readings in 24 days) but is exactly what the widened flag now catches.
 
 **Entity IDs (HA 2026.5 constraint):** both sit under a "PollenWatch Analytics"
 device, and on HA 2026.5 a device-associated entity's ID is **always**

@@ -203,11 +203,15 @@ def test_consensus_equal_high():
 
 
 def test_consensus_adjacent_takes_higher():
-    # 0 & 1 -> low (the higher); 1 & 2 -> high (the higher).
+    # 0 & 1 -> low (the higher); 1 & 2 -> high (the higher). Adjacent (spread 1)
+    # now also flags divergence: a level IS reported, but the sources are not
+    # unanimous (issue #1 fix).
     assert consensus({"a": 0, "b": 1}).state == "low"
     assert consensus({"a": 0, "b": 1}).level == 1
+    assert consensus({"a": 0, "b": 1}).diverged is True
     assert consensus({"a": 1, "b": 2}).state == "high"
     assert consensus({"a": 1, "b": 2}).level == 2
+    assert consensus({"a": 1, "b": 2}).diverged is True
 
 
 def test_consensus_two_apart_is_mixed():
@@ -296,15 +300,15 @@ def test_consensus_three_sources_all_agree():
     assert res.diverged is False
 
 
-def test_consensus_three_sources_lone_high_outlier_takes_higher():
-    # {1,1,2}: two sources agree "low", one says "high". DOCUMENTED WART:
-    # take-the-higher makes the lone outlier win (-> high) AND divergence stays
-    # OFF (spread is only 1), so a minority high reading presents as confident
-    # consensus. Interim behavior; see REVIEW_QUEUE (revisit divergence semantics).
+def test_consensus_three_sources_lone_high_outlier_flags_divergence():
+    # {1,1,2}: two sources agree "low", one says "high". Issue #1 RESOLVED:
+    # take-the-higher still makes the cautious reading win (-> high), but
+    # divergence is now ON (sources not unanimous), so the minority high no
+    # longer presents as confident consensus. (Was the documented wart.)
     res = consensus({"open_meteo": 1, "polleninformation": 1, "dwd": 2})
     assert res.state == "high"
     assert res.level == 2
-    assert res.diverged is False  # <- the wart
+    assert res.diverged is True  # <- fixed: minority pull-up now flagged
 
 
 def test_consensus_three_sources_spanning_two_levels_is_mixed():
@@ -314,26 +318,32 @@ def test_consensus_three_sources_spanning_two_levels_is_mixed():
 
 
 def test_consensus_three_sources_low_outlier_takes_higher():
-    # {0,0,1}: take-higher -> low (level 1), not diverged (spread 1).
+    # {0,0,1}: take-higher -> low (level 1). Spread 1, so a level is reported,
+    # but the sources are not unanimous -> diverged True (issue #1 fix). This is
+    # the dominant real-world shape (one source reads "low" vs others "none").
     res = consensus({"open_meteo": 0, "polleninformation": 0, "dwd": 1})
     assert res.state == "low"
     assert res.level == 1
-    assert res.diverged is False
+    assert res.diverged is True
 
 
 def test_consensus_two_sources_unchanged_when_third_omitted():
     # A species only 2 sources cover (DWD omitted, e.g. out-of-coverage or -1)
     # yields the exact same result as the 2-source case — the "third source
     # disturbs nothing" guarantee at the pure-logic level.
+    # {1,2}: spread 1 -> "high" (take-higher) with diverged True under the
+    # issue-#1 fix. The "third source disturbs nothing" guarantee is about the
+    # result being identical to the 2-source case, which still holds.
     two = consensus({"open_meteo": 1, "polleninformation": 2})
-    assert two.state == "high" and two.level == 2 and two.diverged is False
+    assert two.state == "high" and two.level == 2 and two.diverged is True
     assert two.source_levels == {"open_meteo": 1, "polleninformation": 2}
 
 
 # --- 4- and 5-source consensus (new: MeteoSwiss + ePIN raise the ceiling) ---
 # consensus() is source-count-agnostic, but these scales were never exercised
-# before this milestone. They also lock in the documented lone-higher wart at
-# the new scale (issue #1) — asserted as KNOWN behavior, not fixed here.
+# before this milestone. They also lock in the issue-#1 fix at the new scale:
+# any non-unanimous reading flags divergence, even when take-the-higher still
+# names a level (spread 1).
 
 
 def test_consensus_four_sources_all_agree():
@@ -345,26 +355,25 @@ def test_consensus_four_sources_all_agree():
 
 
 def test_consensus_four_sources_adjacent_takes_higher():
-    # {1,1,2,2}: spread 1 -> take-the-higher -> high, not diverged.
+    # {1,1,2,2}: spread 1 -> take-the-higher -> high, diverged True (not
+    # unanimous, even though it's an even 2-2 split).
     res = consensus({"open_meteo": 1, "polleninformation": 1, "dwd": 2, "epin": 2})
     assert res.state == "high"
     assert res.level == 2
-    assert res.diverged is False
+    assert res.diverged is True
 
 
-def test_consensus_four_sources_lone_high_outlier_wart():
-    # {1,1,1,2}: three sources agree "low", one lone source says "high". WART
-    # (issue #1): take-the-higher lets the lone outlier win (-> high) AND
-    # divergence stays OFF (spread is only 1), so a single dissenting high
-    # reading presents as confident consensus. Documented + deferred; the
-    # divergence-semantics redesign is out of scope for this milestone — this
-    # test pins the behavior so the wider scale is not silently untested.
+def test_consensus_four_sources_lone_high_outlier_flags_divergence():
+    # {1,1,1,2}: three sources agree "low", one lone source says "high". Issue #1
+    # fix: take-the-higher still names "high" (cautious), but divergence is now
+    # ON because the sources are not unanimous — the lone dissenting high no
+    # longer presents as confident consensus.
     res = consensus(
         {"open_meteo": 1, "polleninformation": 1, "dwd": 1, "meteoswiss": 2}
     )
     assert res.state == "high"
     assert res.level == 2
-    assert res.diverged is False  # <- the wart, now confirmed at 4 sources
+    assert res.diverged is True  # <- fixed at 4 sources
 
 
 def test_consensus_four_sources_spanning_two_levels_is_mixed():
@@ -393,8 +402,9 @@ def test_consensus_five_sources_all_agree():
     assert len(res.source_levels) == 5
 
 
-def test_consensus_five_sources_lone_high_outlier_wart():
-    # {1,1,1,1,2} at five sources: same wart — lone outlier wins, no divergence.
+def test_consensus_five_sources_lone_high_outlier_flags_divergence():
+    # {1,1,1,1,2} at five sources: lone outlier still wins the cautious "high",
+    # and divergence is ON (not unanimous) under the issue-#1 fix.
     res = consensus(
         {
             "open_meteo": 1,
@@ -406,7 +416,7 @@ def test_consensus_five_sources_lone_high_outlier_wart():
     )
     assert res.state == "high"
     assert res.level == 2
-    assert res.diverged is False  # the wart persists at 5 sources (issue #1)
+    assert res.diverged is True  # fixed at 5 sources (issue #1)
 
 
 def test_consensus_five_sources_spanning_two_levels_is_mixed():

@@ -97,10 +97,13 @@ On top of the raw per-source sensors:
   `source_count` + `max_possible_sources` so the card can render the `n/m`
   authority badge. A single-source species (`1/m`) gets a consensus reading
   pass-through (no `mixed` is ever emitted) plus the card's visual humbling.
-  **divergence** is a binary flag, only emitted when ≥2 sources actually
-  disagree by more than one level. Note the
-  [#1](https://github.com/TheDave94/pollenwatch/issues/1) lone-higher edge
-  above (reachable when 3+ sources cover a species).
+  **divergence** is a binary flag, on whenever ≥2 sources are **not unanimous**
+  (any disagreement), with a `spread` attribute grading mild (adjacent, a level
+  is still reported) vs `mixed` (≥2 levels apart, no single level). This is the
+  honest companion to take-the-higher: a `{1,1,2}` reading reports consensus
+  `high` *and* divergence on, instead of a minority high masquerading as
+  confident consensus ([#1](https://github.com/TheDave94/pollenwatch/issues/1),
+  resolved from live multi-source data).
 
 ## Installation
 
@@ -168,8 +171,9 @@ The cross-source metrics live under a separate **"PollenWatch Analytics"**
 device: `sensor.pollenwatch_analytics_<species>_consensus` (categorical
 none/low/high/mixed; carries `source_count` + `max_possible_sources` so the
 card can render the `n/m` badge) and
-`binary_sensor.pollenwatch_analytics_<species>_divergence` (binary flag, only
-emitted when ≥2 sources actually disagree).
+`binary_sensor.pollenwatch_analytics_<species>_divergence` (binary flag created
+for any ≥2-source species; on when the sources are not unanimous, with a `spread`
+attribute grading the disagreement).
 
 ### How many entities will I see?
 
@@ -360,12 +364,13 @@ PollenWatch's data carries these required attributions:
 Honest disclosures, not blockers — these describe the state of a project the
 maintainer uses daily.
 
-- **Consensus has a lone-higher edge** ([#1](https://github.com/TheDave94/pollenwatch/issues/1)):
-  with ≥ 3 sources, a single higher reading can pull the consensus up without
-  flagging divergence. The gauge surfaces `mixed` cleanly when sources differ
-  by more than one level, but the adjacent-level `{1,1,2}` case still resolves
-  to the higher (`high`). Under investigation for a future release; tracked
-  in the [REVIEW_QUEUE](REVIEW_QUEUE.md).
+- **Consensus rounds toward the more cautious reading.** With take-the-higher, a
+  single higher source pulls the consensus *level* up (`{1,1,2}` → `high`) — a
+  deliberate health-conservative choice. The `{1,1,2}` "lone-higher" edge
+  ([#1](https://github.com/TheDave94/pollenwatch/issues/1)) where this read as
+  *confident* consensus is **resolved**: divergence now flags any non-unanimity
+  (not just the spread-`>1` `mixed` case), so such a reading reports `high` *and*
+  divergence on. See [ANALYTICS.md](ANALYTICS.md) for the data behind the call.
 - **Per-source maturity is uneven.** Open-Meteo, polleninformation and Google
   run on the maintainer's live HA. **DWD, MeteoSwiss and ePIN** are
   validated against the live feeds and exercised on a maintainer-side throwaway
