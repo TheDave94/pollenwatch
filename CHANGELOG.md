@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/TheDave94/pollenwatch/compare/v3.0.2...v3.1.0) (2026-06-29)
+
+
+### Features
+
+* **analytics:** flag divergence on any non-unanimity (closes [#1](https://github.com/TheDave94/pollenwatch/issues/1)) ([a4eed05](https://github.com/TheDave94/pollenwatch/commit/a4eed0545aabe24c782af46527d3e8b29fc2a673))
+
 ## [3.0.2](https://github.com/TheDave94/pollenwatch/compare/v3.0.1...v3.0.2) (2026-06-20)
 
 
