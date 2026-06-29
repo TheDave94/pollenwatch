@@ -317,12 +317,26 @@ constant per `brand/GAUGE_SPEC.md`.
 
 ### Using a third-party card
 
-If you'd rather use a third-party Lovelace card, the raw per-source sensors are
-standard HA entities and work with anything that consumes them. For
-[pollenprognos-card](https://github.com/krissen/pollenprognos-card)
-specifically: it does not yet auto-detect PollenWatch, so map the raw sensors
-with the card's manual configuration (e.g. entity prefix
-`pollenwatch_open_meteo_`).
+The raw per-source sensors are standard HA entities, so Home Assistant's
+**built-in** cards (Entities, Gauge, History, Statistics, custom-button/template
+cards, …) work with them directly. On the **raw** per-source sensors the
+normalized severity is in the `level` (0-based integer) and `level_label`
+(`none`/`low`/`high`/…) attributes — point a gauge or template card at those
+rather than at the state, which carries the source's native value (grains/m³ for
+Open-Meteo, a native index for the others). On the **consensus** sensor the state
+*is* the level word (`none`/`low`/`high`/`mixed`), with the integer in the `level`
+attribute.
+
+> **Note on [pollenprognos-card](https://github.com/krissen/pollenprognos-card):**
+> it is **not** compatible with PollenWatch, including via its `manual`
+> entity-prefix mode. That card derives each allergen's level from the sensor's
+> *state* on a fixed per-integration scale (e.g. a 0–6 index), whereas PollenWatch
+> keeps the source's raw concentration/index in the state and exposes the
+> normalized level only in the `level` / `level_label` attributes. Pointed at
+> `pollenwatch_open_meteo_*` it reads a raw concentration where it expects a level
+> and reports no data. There is no PollenWatch adapter in that card; use
+> PollenWatch's own bundled card, or a built-in card reading the `level_label`
+> attribute, instead.
 
 ## Attribution
 
