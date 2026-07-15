@@ -69,12 +69,12 @@ rules:
   # ------------------------- Gold (not claimed) -------------------------
   devices: done
   diagnostics:
-    status: todo
+    status: done
     comment: |
-      diagnostics.py is a stub. For a multi-source keyed integration this
-      is the textbook diagnostics case; needs async_get_config_entry_diagnostics
-      returning entry data + per-source last-fetch status, with API_KEY
-      redaction for polleninformation and Google.
+      diagnostics.py implements async_get_config_entry_diagnostics returning
+      entry data + a per-source last-fetch summary, with location + api_key
+      redaction (async_redact_data over TO_REDACT). Covered by
+      tests/test_diagnostics.py.
   discovery:
     status: exempt
     comment: |
