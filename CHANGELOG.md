@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.1](https://github.com/TheDave94/pollenwatch/compare/v3.1.0...v3.1.1) (2026-07-15)
+
+
+### Bug Fixes
+
+* full-codebase review — species-prune data loss, outage classification, card perf ([#35](https://github.com/TheDave94/pollenwatch/issues/35)) ([4891681](https://github.com/TheDave94/pollenwatch/commit/48916814605cd0a6132c2195463a629085126d6f))
+
 ## [3.1.0](https://github.com/TheDave94/pollenwatch/compare/v3.0.2...v3.1.0) (2026-06-29)
 
 
