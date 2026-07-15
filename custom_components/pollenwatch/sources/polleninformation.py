@@ -200,18 +200,34 @@ class PolleninformationSource:
             raise SourceAuthError(
                 f"polleninformation rejected the API key (HTTP {status})."
             )
+        # A 5xx is a transient server-side failure, not a coverage/auth problem.
+        # This MUST be checked before the error-body interpretation below: the
+        # aiohttp transport wraps a non-JSON 5xx body as {"error": <text>}, so
+        # without this guard a server outage was mis-reported as OUT_OF_COVERAGE
+        # ("location not covered") and surfaced that to the user in the config
+        # flow, instead of a retryable failure.
+        if status >= 500:
+            raise SourceUnavailable(
+                f"polleninformation transient server error (HTTP {status})."
+            )
         if isinstance(payload, dict) and "error" in payload:
             reason = str(payload.get("error", "")).strip()
             if "api key" in reason.lower() or "apikey" in reason.lower():
                 raise SourceAuthError(reason or "Invalid polleninformation API key.")
-            # Any other error body = location not covered for this country.
-            return SourceResult(
-                source=SOURCE_NAME,
-                status=SourceStatus.OUT_OF_COVERAGE,
-                requested_lat=self.latitude,
-                requested_lon=self.longitude,
-                generated_at=_now_iso(),
-                message=reason or "Location not covered by polleninformation.",
+            # An error body on a 200 = location not covered for this country.
+            # An error body on any other status is a genuine response error, not
+            # a coverage signal.
+            if status == 200:
+                return SourceResult(
+                    source=SOURCE_NAME,
+                    status=SourceStatus.OUT_OF_COVERAGE,
+                    requested_lat=self.latitude,
+                    requested_lon=self.longitude,
+                    generated_at=_now_iso(),
+                    message=reason or "Location not covered by polleninformation.",
+                )
+            raise SourceResponseError(
+                f"polleninformation error (HTTP {status}): {reason or 'unknown'}"
             )
         if status != 200:
             raise SourceResponseError(

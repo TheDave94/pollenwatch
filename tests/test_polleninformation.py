@@ -114,6 +114,16 @@ def test_api_key_error_body_raises_auth_error():
         asyncio.run(source.async_fetch())
 
 
+def test_http_503_is_transient_not_out_of_coverage():
+    """A 5xx outage (whose non-JSON body the transport wraps as {"error": ...})
+    is a retryable transport failure, not a 'location not covered' verdict."""
+    from custom_components.pollenwatch.sources.base import SourceUnavailable
+
+    source = _source(_async_transport(503, {"error": "<html>Service Unavailable"}))
+    with pytest.raises(SourceUnavailable):
+        asyncio.run(source.async_fetch())
+
+
 def test_retry_then_succeed():
     calls = {"n": 0}
 

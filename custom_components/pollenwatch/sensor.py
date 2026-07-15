@@ -204,12 +204,34 @@ def _async_remove_deconfigured_entities(
     prefix = f"{entry.entry_id}_{source_key}_"
     for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
         if reg_entry.unique_id.startswith(prefix):
-            # Suffix is "<allergen>" or "<allergen>_<metric>" (e.g.
-            # grass_recent_percentile); the allergen is the first token. Removing
-            # a deconfigured allergen drops all its entities (raw + derived).
-            allergen = reg_entry.unique_id[len(prefix):].split("_", 1)[0]
-            if allergen not in configured:
+            # Suffix is "<species>" or "<species>_<metric>" (e.g.
+            # grass_recent_percentile). A blind split("_", 1)[0] is WRONG:
+            # canonical species keys themselves contain underscores
+            # (cypress_family, nettle_family, holm_oak, plane_tree), so it would
+            # recover "cypress" — never in `configured` — and prune the selected
+            # species' entities on every reload, wiping the user's registry
+            # customisations. Match the longest configured key that prefixes the
+            # suffix instead. Removing a deconfigured species drops all its
+            # entities (raw + derived).
+            suffix = reg_entry.unique_id[len(prefix):]
+            species = _species_from_suffix(suffix, configured)
+            if species not in configured:
                 registry.async_remove(reg_entry.entity_id)
+
+
+def _species_from_suffix(suffix: str, configured: set[str]) -> str:
+    """Recover the species key from a unique-id suffix.
+
+    Suffixes are ``<species>`` or ``<species>_<metric>``. Canonical species keys
+    contain underscores, so a blind split is wrong; the longest configured key
+    that prefixes the suffix wins, falling back to the bare suffix so unknown
+    entities (and the disabled-source sweep, which passes an empty set) still
+    prune.
+    """
+    for species in sorted(configured, key=len, reverse=True):
+        if suffix == species or suffix.startswith(f"{species}_"):
+            return species
+    return suffix
 
 
 def _forecast_attr(

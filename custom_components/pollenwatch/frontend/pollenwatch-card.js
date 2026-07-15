@@ -186,6 +186,28 @@
     return { state: 'unknown', source_levels: src, source_count, max_possible };
   }
 
+  // True when any PollenWatch entity's state object changed identity between
+  // two hass snapshots. Covers the card's whole data surface (consensus,
+  // per-source, divergence) without needing the resolved-species set, so it is
+  // correct even while WS discovery is still pending.
+  function _pollenStatesChanged(oldHass, newHass) {
+    const os = oldHass?.states;
+    const ns = newHass?.states;
+    if (os === ns) return false;
+    if (!os || !ns) return true;
+    for (const states of [os, ns]) {
+      for (const id in states) {
+        if (
+          id.startsWith('sensor.pollenwatch_') ||
+          id.startsWith('binary_sensor.pollenwatch_')
+        ) {
+          if (os[id] !== ns[id]) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function perSourceRows(hass, species, source_levels) {
     return Object.entries(source_levels).map(([src, level]) => {
       const eid = `sensor.pollenwatch_${src}_${species}`;
@@ -948,11 +970,15 @@
           if (result?.default_layout) {
             this._discoveredLayout = result.default_layout;
           }
-          // Re-evaluate the resolved layout; if it changed, rebuild.
+          // Re-evaluate the resolved layout; if it changed, rebuild AND
+          // re-render — _build() only lays out the empty container skeleton, so
+          // without the render the grid stays blank until the next unrelated
+          // state push happens to arrive.
           const next = this._resolveLayout();
           if (next !== this._resolvedLayout) {
             this._resolvedLayout = next;
             this._build();
+            if (this._hass) this._render();
           }
         } catch (_e) {
           // Endpoint absent / errored — fall back to scan + gauge per the
@@ -964,14 +990,21 @@
     }
 
     set hass(hass) {
-      const wasUnset = !this._hass;
+      const oldHass = this._hass;
+      const wasUnset = !oldHass;
       this._hass = hass;
       // Kick off discovery once per session. Overview mode needs it for
       // species + layout resolution; gauge mode benefits too because a
       // future YAML edit can flip the layout without re-fetching. Silent
       // on failure — _resolveLayout / _resolveSpecies degrade gracefully.
       if (wasUnset) this._ensureDiscovery();
-      if (this.shadowRoot.childElementCount > 0) this._render();
+      if (this.shadowRoot.childElementCount === 0) return;
+      // Relevance gating: HA assigns `hass` on EVERY state change of ANY entity
+      // (hundreds/min). Only re-render when a PollenWatch entity the card reads
+      // actually changed — otherwise the overview layouts tear down and rebuild
+      // every row (and drop keyboard focus) on unrelated churn.
+      if (!wasUnset && !_pollenStatesChanged(oldHass, hass)) return;
+      this._render();
     }
 
     getCardSize() { return 4; }
